@@ -208,9 +208,9 @@ int main()
 	glBindVertexArray(0);
 
 	// FBO setup
-	GLuint fbo;
-	glGenFramebuffers(1, &fbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	GLuint shadowFBO;
+	glGenFramebuffers(1, &shadowFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
 
 	// Depth Texture
 	GLuint depthTexture;
@@ -219,23 +219,43 @@ int main()
 	glGenTextures(1, &depthTexture);
 	glBindTexture(GL_TEXTURE_2D, depthTexture);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, depthTextureWidth, depthTextureHeight, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, nullptr);
+
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthTexture, 0);
 	glDrawBuffer(GL_NONE);
+	
+	if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+		std::cerr << "Framebuffer incomplete...\n";	
+
+	// HDR Framebuffer
+	GLuint hdrFBO;
+	glGenFramebuffers(1, &hdrFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
+
+	GLuint colorBuffer;
+	glGenTextures(1, &colorBuffer);
+	glBindTexture(GL_TEXTURE_2D, colorBuffer);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, windowWidth, windowHeight, 0, GL_RGBA, GL_FLOAT, nullptr);
+	
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffer, 0);
 
 	if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-	{
-		printf("Framebuffer incomplete...");
-		return 1;
-	}
+		std::cerr << "Framebuffer incomplete...\n";	
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	GLuint mainShader = CreateShaderProgram("main.vsh", "main.fsh");
 	GLuint depthShader = CreateShaderProgram("depth.vsh", "depth.fsh");
+	GLuint hdrShader = CreateShaderProgram("hdr.vsh", "hdr.fsh");
 
+	glUseProgram(hdrShader);
+	glUniform1i(glGetUniformLocation(hdrShader, "hdrBuffer"), 0);
+	glUniform1f(glGetUniformLocation(hdrShader, "exposure"), 5.0f);
 
 	glEnable(GL_MULTISAMPLE);
 	glEnable(GL_DEPTH_TEST);
@@ -261,7 +281,7 @@ int main()
 	glm::vec3 directionalLightPosition(3.0f, 3.0f, -7.0f);
 	glm::vec3 directionalLightDirection(-1.0f, -1.0f, 1.0f);
 	glm::vec3 directionalLightAmbient(1.0f, 1.0f, 1.0f);
-	glm::vec3 directionalLightDiffuse(0.75f, 0.75f, 0.75f);
+	glm::vec3 directionalLightDiffuse(3.75f, 3.75f, 3.75f);
 	glm::vec3 directionalLightSpecular(0.5f, 0.5f, 0.5f);
 	glm::mat4 directionalLightProjectionMatrix = glm::ortho(-15.0f, 10.0f, -5.0f, 10.0f, 0.0f, 20.0f);
 	glm::mat4 directionalLightViewMatrix = glm::lookAt(directionalLightPosition, directionalLightPosition + directionalLightDirection, glm::vec3(0, 1, 0));
@@ -332,11 +352,35 @@ int main()
 		glm::mat4 planeMatrix = glm::scale(iMatrix, glm::vec3(10.0f, 1.0f, 10.0f));
 		planeMatrix = glm::translate(planeMatrix, glm::vec3(0, -0.5f, 0));
 
+		// HDR PASS
+		glUseProgram(hdrShader);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, colorBuffer);
 
-		// FIRST PASS
+		glUniformMatrix4fv(glGetUniformLocation(hdrShader, "lightProjection"), 1, GL_FALSE, glm::value_ptr(directionalLightProjectionMatrix));
+		glUniformMatrix4fv(glGetUniformLocation(hdrShader, "lightView"), 1, GL_FALSE, glm::value_ptr(directionalLightViewMatrix));
+
+		// DRAW 📝
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
+		glUniformMatrix4fv(glGetUniformLocation(hdrShader, "model"), 1, GL_FALSE, glm::value_ptr(firstMatrix));
+		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+		glUniformMatrix4fv(glGetUniformLocation(hdrShader, "model"), 1, GL_FALSE, glm::value_ptr(secondMatrix));
+		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+		glUniformMatrix4fv(glGetUniformLocation(hdrShader, "model"), 1, GL_FALSE, glm::value_ptr(thirdMatrix));
+		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+		glUniformMatrix4fv(glGetUniformLocation(hdrShader, "model"), 1, GL_FALSE, glm::value_ptr(fourthMatrix));
+		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+		glUniformMatrix4fv(glGetUniformLocation(hdrShader, "model"), 1, GL_FALSE, glm::value_ptr(fifthMatrix));
+		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, planeEbo);
+		glUniformMatrix4fv(glGetUniformLocation(hdrShader, "model"), 1, GL_FALSE, glm::value_ptr(planeMatrix));
+		glDrawElements(GL_TRIANGLES, planeIndicesSize, GL_UNSIGNED_INT, 0);
+
+
+		// SHADOW PASS
 		glUseProgram(depthShader);
 		glViewport(0, 0, depthTextureWidth, depthTextureHeight);
-		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+		glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
 		glClear(GL_DEPTH_BUFFER_BIT);
 		
 		glUniformMatrix4fv(glGetUniformLocation(depthShader, "lightProjection"), 1, GL_FALSE, glm::value_ptr(directionalLightProjectionMatrix));
@@ -359,7 +403,7 @@ int main()
 		glDrawElements(GL_TRIANGLES, planeIndicesSize, GL_UNSIGNED_INT, 0);
 
 
-		// SECOND PASS
+		// RENDER PASS
 		glUseProgram(mainShader);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glViewport(0, 0, windowWidth, windowHeight);
@@ -409,7 +453,7 @@ int main()
 
 	glDeleteBuffers(1, &vbo);
 	glDeleteVertexArrays(1, &vao);
-	glDeleteFramebuffers(1, &fbo);
+	glDeleteFramebuffers(1, &shadowFBO);
 
 	glfwTerminate();
 
