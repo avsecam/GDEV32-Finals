@@ -4,10 +4,15 @@
 layout(location = 0) in vec3 vertexPosition;
 layout(location = 1) in vec3 vertexColor;
 layout(location = 2) in vec3 vertexNormal;
+layout(location = 3) in vec2 vertexUV;
 
 out vec3 outPosition;
 out vec3 outColor;
 out vec3 outNormal;
+out vec2 outUV;
+
+// for skybox
+out vec3 skyboxTexCoords;
 
 // light matrices
 uniform mat4 lightProjection, lightView;
@@ -21,6 +26,9 @@ void main()
 	outPosition = vec3(model * vec4(vertexPosition, 1.f));
 	outColor = vertexColor;
 	outNormal = mat3(transpose(inverse(model))) * vertexNormal;
+	outUV = vertexUV;
+
+	skyboxTexCoords = vertexPosition;
 	
 	fragPositionFromLight = lightProjection * lightView * model * vec4(vertexPosition, 1.0);
 	gl_Position = projection * view * model * vec4(vertexPosition, 1.0);

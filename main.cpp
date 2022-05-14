@@ -29,7 +29,6 @@ struct Vertex
 	GLfloat x, y, z;		// Position
 	GLubyte r, g, b;		// Color
 	GLfloat nx, ny, nz; // Normals
-	GLfloat u, v;       // UV
 };
 
 GLuint loadSkybox(std::vector<std::string> faces)
@@ -42,9 +41,13 @@ GLuint loadSkybox(std::vector<std::string> faces)
 	for (size_t i = 0; i < faces.size(); ++i)
 	{
 		unsigned char *data = stbi_load(faces[i].c_str(), &width, &height, &numOfChannels, 0);
-		if (data)
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + 1,
-									 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+		if(data)
+		{
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+				0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+		}
+		else
+			std::cerr << "ERROR loading cubemap texture\n";
 		stbi_image_free(data);
 	}
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -100,7 +103,7 @@ int main()
 	}
 
 	// vertex specification
-	// Position	 Color  Normal  UV
+	// Position	 Color  Normal
 
 	Vertex vertices[28];
 
@@ -185,15 +188,6 @@ int main()
 		vertices[i + 3].nx = normal.x;
 		vertices[i + 3].ny = normal.y;
 		vertices[i + 3].nz = normal.z;
-
-		vertices[i].u = 0.0f;
-		vertices[i].v = 1.0f;
-		vertices[i + 1].u = 1.0f;
-		vertices[i + 1].v = 1.0f;
-		vertices[i + 2].u = 1.0f;
-		vertices[i + 2].v = 0.0f;
-		vertices[i + 3].u = 0.0f;
-		vertices[i + 3].v = 0.0f;
 	}
 
 	// vertex order for EBO
@@ -228,9 +222,9 @@ int main()
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
 	// VAO setup
-	GLuint vao;
-	glGenVertexArrays(1, &vao);
-	glBindVertexArray(vao);
+	GLuint objectVAO;
+	glGenVertexArrays(1, &objectVAO);
+	glBindVertexArray(objectVAO);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)offsetof(Vertex, x));
@@ -238,11 +232,10 @@ int main()
 	glVertexAttribPointer(1, 3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex), (void *)(offsetof(Vertex, r)));
 	glEnableVertexAttribArray(2);
 	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)(offsetof(Vertex, nx)));
-	glEnableVertexAttribArray(3);
-	glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)(offsetof(Vertex, u)));
+
 	glBindVertexArray(0);
 
-	// FBO setup
+	// shadow FBO setup
 	GLuint shadowFBO;
 	glGenFramebuffers(1, &shadowFBO);
 	glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
@@ -261,28 +254,8 @@ int main()
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthTexture, 0);
 	glDrawBuffer(GL_NONE);
 
-	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+	if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 		std::cerr << "Framebuffer incomplete...\n";
-
-	// HDR Framebuffer
-	GLuint hdrFBO;
-	glGenFramebuffers(1, &hdrFBO);
-	glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
-
-	GLuint colorBuffer;
-	glGenTextures(1, &colorBuffer);
-	glBindTexture(GL_TEXTURE_2D, colorBuffer);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, windowWidth, windowHeight, 0, GL_RGBA, GL_FLOAT, nullptr);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffer, 0);
-
-	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-		std::cerr << "Framebuffer incomplete...\n";
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	std::vector<std::string> faces {
 		"./skybox/right.jpg",
@@ -296,12 +269,16 @@ int main()
 
 	GLuint mainShader = CreateShaderProgram("main.vsh", "main.fsh");
 	GLuint depthShader = CreateShaderProgram("depth.vsh", "depth.fsh");
-	GLuint skyboxShader = CreateShaderProgram("main.vsh", "skybox.fsh");
-	GLuint hdrShader = CreateShaderProgram("hdr.vsh", "hdr.fsh");
+	GLuint skyboxShader = CreateShaderProgram("skybox.vsh", "skybox.fsh");
 
-	glUseProgram(hdrShader);
-	glUniform1i(glGetUniformLocation(hdrShader, "hdrBuffer"), 0);
-	glUniform1f(glGetUniformLocation(hdrShader, "exposure"), 5.0f);
+	glUseProgram(mainShader);
+	glUniform1i(glGetUniformLocation(mainShader, "skybox"), 0);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, depthTexture);
+	glUniform1i(glGetUniformLocation(mainShader, "shadowMap"), 1);
+
+	glUseProgram(skyboxShader);
+	glUniform1i(glGetUniformLocation(skyboxShader, "skybox"), 0);
 
 	glEnable(GL_MULTISAMPLE);
 	glEnable(GL_DEPTH_TEST);
@@ -373,11 +350,9 @@ int main()
 		glm::mat4 viewMatrix = glm::lookAt(position, position + direction, up);
 		glm::mat4 projectionMatrix = glm::perspective(glm::radians(90.0f), windowWidth / windowHeight, 0.1f, 100.0f);
 
-		glUniformMatrix4fv(glGetUniformLocation(mainShader, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
-		glUniformMatrix4fv(glGetUniformLocation(mainShader, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 
-		glBindVertexArray(vao);
 		// SET OBJECT TRANSFORMS
+		glBindVertexArray(objectVAO);
 		// cube
 		glm::mat4 firstMatrix = glm::scale(iMatrix, glm::vec3(2.0f, 2.0f, 2.0f));
 		firstMatrix = glm::translate(firstMatrix, glm::vec3(0.0f, 0.5f, 0.0f));
@@ -403,36 +378,7 @@ int main()
 		glm::mat4 skyboxMatrix = glm::scale(iMatrix, glm::vec3(50.0f, 50.0f, 50.0f));
 
 
-		
-
-
-		/* HDR PASS
-		glUseProgram(hdrShader);
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, colorBuffer);
-
-		glUniformMatrix4fv(glGetUniformLocation(hdrShader, "lightProjection"), 1, GL_FALSE, glm::value_ptr(directionalLightProjectionMatrix));
-		glUniformMatrix4fv(glGetUniformLocation(hdrShader, "lightView"), 1, GL_FALSE, glm::value_ptr(directionalLightViewMatrix));
-
-		// DRAW 📝
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
-		glUniformMatrix4fv(glGetUniformLocation(hdrShader, "model"), 1, GL_FALSE, glm::value_ptr(firstMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glUniformMatrix4fv(glGetUniformLocation(hdrShader, "model"), 1, GL_FALSE, glm::value_ptr(secondMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glUniformMatrix4fv(glGetUniformLocation(hdrShader, "model"), 1, GL_FALSE, glm::value_ptr(thirdMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glUniformMatrix4fv(glGetUniformLocation(hdrShader, "model"), 1, GL_FALSE, glm::value_ptr(fourthMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glUniformMatrix4fv(glGetUniformLocation(hdrShader, "model"), 1, GL_FALSE, glm::value_ptr(fifthMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, planeEbo);
-		glUniformMatrix4fv(glGetUniformLocation(hdrShader, "model"), 1, GL_FALSE, glm::value_ptr(planeMatrix));
-		glDrawElements(GL_TRIANGLES, planeIndicesSize, GL_UNSIGNED_INT, 0);
-*/
-
-
-		/* SHADOW PASS
+		// SHADOW PASS
 		glUseProgram(depthShader);
 		glViewport(0, 0, depthTextureWidth, depthTextureHeight);
 		glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
@@ -455,7 +401,6 @@ int main()
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, planeEbo);
 		glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(planeMatrix));
 		glDrawElements(GL_TRIANGLES, planeIndicesSize, GL_UNSIGNED_INT, 0);
-*/
 
 
 		// RENDER PASS
@@ -464,10 +409,10 @@ int main()
 		glViewport(0, 0, windowWidth, windowHeight);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, depthTexture);
-		glUniform1i(glGetUniformLocation(mainShader, "shadowMap"), 0);
+		glActiveTexture(GL_TEXTURE1);
 
+		glUniformMatrix4fv(glGetUniformLocation(mainShader, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+		glUniformMatrix4fv(glGetUniformLocation(mainShader, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 		glUniform3fv(glGetUniformLocation(mainShader, "viewPosition"), 1, glm::value_ptr(position));
 
 		// directional light uniforms
@@ -493,28 +438,23 @@ int main()
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, planeEbo);
 		glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(planeMatrix));
 		glDrawElements(GL_TRIANGLES, planeIndicesSize, GL_UNSIGNED_INT, 0);
+		
 
 		// SKYBOX PASS
+		glDepthFunc(GL_LEQUAL);
 		glUseProgram(skyboxShader);
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		glViewport(0, 0, windowWidth, windowHeight);
-		glDepthMask(GL_FALSE);
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, skybox);
-		glUniform1i(glGetUniformLocation(skyboxShader, "skybox"), 0);
-		
 		glm::mat4 skyboxViewMatrix = glm::mat4(glm::mat3(viewMatrix));
-		glUniformMatrix4fv(glGetUniformLocation(mainShader, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-		glUniformMatrix4fv(glGetUniformLocation(mainShader, "view"), 1, GL_FALSE, glm::value_ptr(skyboxViewMatrix));
-		glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "view"), 1, GL_FALSE, glm::value_ptr(skyboxViewMatrix));
+		glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 
+		glActiveTexture(GL_TEXTURE0);
+		
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
-		glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(skyboxMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "model"), 1, GL_FALSE, glm::value_ptr(skyboxMatrix));
 		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
 
-		glDepthMask(GL_TRUE);
+		glDepthFunc(GL_LESS);
+
 		// CLEAR
 		glBindVertexArray(0);
 
@@ -524,11 +464,9 @@ int main()
 	}
 
 	glDeleteProgram(mainShader);
-	glDeleteProgram(depthShader);
 
 	glDeleteBuffers(1, &vbo);
-	glDeleteVertexArrays(1, &vao);
-	glDeleteFramebuffers(1, &shadowFBO);
+	glDeleteVertexArrays(1, &objectVAO);
 
 	glfwTerminate();
 

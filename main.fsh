@@ -10,8 +10,9 @@ in vec4 fragPositionFromLight;
 out vec4 fragColor;
 
 uniform sampler2D shadowMap;
+uniform samplerCube skybox;
 
-const float AMBIENT_STRENGTH = 0.3f;
+const float AMBIENT_STRENGTH = 0.7f;
 
 // POINT LIGHT STRUCT
 struct PhongLighting
@@ -104,12 +105,24 @@ PhongLighting calculateLight(in PhongLighting light, in int lightType)
 	vec3 fragLightNDC = fragPositionFromLight.xyz / fragPositionFromLight.w;
 	fragLightNDC = (fragLightNDC + 1.f) / 2.f;
 
-	float bias = max(0.00125f * (1 - dot(outNormal, lightDirection)), 0.001125f);
+	float bias = max(0.0000125f * (1 - dot(outNormal, lightDirection)), 0.00001125f);
 	float depthValue = texture(shadowMap, fragLightNDC.xy).x + bias;
+	float currentDepth = fragLightNDC.z;
 
-	if(depthValue < fragLightNDC.z)
+	if(depthValue < currentDepth)
 	{
-		sum = PhongLighting( ambient, vec3(0), vec3(0), vec3(0), vec3(0), 0, 0 );
+		float shadow = 0.f;
+		vec2 texelSize = 1.f / textureSize(shadowMap, 0);
+		for(int x = -1; x <= 1; ++x)
+		{
+			for(int y = -1; y <= 1; ++y)
+			{
+				float pcfDepth = texture(shadowMap, fragLightNDC.xy + vec2(x, y) * texelSize).r;
+				shadow += (currentDepth - bias > pcfDepth) ? 1.f : 0.f;
+			}
+		}
+		shadow /= 9.f;
+		sum = PhongLighting( ambient + (1.f - shadow), vec3(0), vec3(0), vec3(0), vec3(0), 0, 0 );
 	}
 	else
 	{
@@ -117,7 +130,6 @@ PhongLighting calculateLight(in PhongLighting light, in int lightType)
 	}
 	return sum;
 }
-
 
 void main()
 {
@@ -127,7 +139,7 @@ void main()
 		calculateLight(directionalLight, DIRECTIONAL_LIGHT)
 	);
 
-	vec3 lightSum = vec3(0.5f);
+	vec3 lightSum = vec3(1.f);
 
 	vec3 ambientAverage = vec3(0);
 	vec3 diffuseAndSpecularSum = vec3(0);
@@ -140,9 +152,12 @@ void main()
 
 	lightSum = ambientAverage + diffuseAndSpecularSum;
 
-	
+	// REFLECTION
+	vec3 viewDirection = normalize(outPosition - viewPosition);
+	vec3 reflection = reflect(viewDirection, normalize(outNormal));
+	vec3 reflectionTexture = texture(skybox, reflection).rgb;
 
-	vec3 finalColor = (lightSum) * outColor;
+	vec3 finalColor = (lightSum) * outColor * reflectionTexture;
 	fragColor = vec4(finalColor, 1.f);
 
 	// debug
