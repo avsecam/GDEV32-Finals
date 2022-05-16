@@ -59,6 +59,26 @@ GLuint loadSkybox(std::vector<std::string> faces)
 	return textureID;
 }
 
+GLFWwindow *window;
+void getCameraMovementInput();
+
+// window size
+GLfloat windowWidth, windowHeight;
+
+// camera and movement
+GLfloat horizontalAngle = M_PI;
+GLfloat verticalAngle = 0.0f;
+GLfloat speed = 4.0f;
+GLfloat mouseSpeed = 0.8f;
+glm::vec3 direction, right, up;
+
+// starting view position
+glm::vec3 position(0.0f, 3.0f, 5.0f);
+GLdouble xpos, ypos;
+
+// time
+GLfloat currentTime, deltaTime, lastTime;
+
 int main()
 {
 	// Initialize GLFW
@@ -79,9 +99,9 @@ int main()
 	glfwWindowHint(GLFW_SAMPLES, 8);
 
 	// Tell GLFW to create a window
-	float windowWidth = 800;
-	float windowHeight = 800;
-	GLFWwindow *window = glfwCreateWindow(windowWidth, windowHeight, "FINALS", nullptr, nullptr);
+	windowWidth = 800;
+	windowHeight = 800;
+	window = glfwCreateWindow(windowWidth, windowHeight, "FINALS", nullptr, nullptr);
 	if (window == nullptr)
 	{
 		std::cerr << "Failed to create GLFW window!" << std::endl;
@@ -104,7 +124,6 @@ int main()
 
 	// vertex specification
 	// Position	 Color  Normal
-
 	Vertex vertices[28];
 
 	// CUBE
@@ -286,18 +305,7 @@ int main()
 	GLint cubeIndicesSize = sizeof(cubeIndices) / sizeof(cubeIndices[0]);
 	GLint planeIndicesSize = sizeof(planeIndices) / sizeof(planeIndices[0]);
 
-	// camera and movement
-	GLfloat horizontalAngle = M_PI;
-	GLfloat verticalAngle = 0.0f;
-	GLfloat speed = 4.0f;
-	GLfloat mouseSpeed = 0.8f;
-	glm::vec3 direction, right, up;
-
-	// starting view position
-	glm::vec3 position(0.0f, 3.0f, 5.0f);
-	GLdouble xpos, ypos;
-
-	GLfloat lastTime = glfwGetTime();
+	lastTime = glfwGetTime();
 
 	// DIRECTIONAL LIGHT
 	glm::vec3 directionalLightPosition(3.0f, 3.0f, -7.0f);
@@ -311,37 +319,11 @@ int main()
 	// Render loop
 	while (!glfwWindowShouldClose(window))
 	{
-		GLfloat currentTime = glfwGetTime();
-		GLfloat deltaTime = currentTime - lastTime;
+		currentTime = glfwGetTime();
+		deltaTime = currentTime - lastTime;
 		lastTime = currentTime;
 
-		// camera movement
-		glfwGetCursorPos(window, &xpos, &ypos);
-		glfwSetCursorPos(window, (double)windowWidth / 2, (double)windowHeight / 2);
-
-		horizontalAngle += mouseSpeed * deltaTime * float(windowWidth / 2 - xpos);
-		verticalAngle += mouseSpeed * deltaTime * float(windowHeight / 2 - ypos);
-
-		direction = glm::vec3(cos(verticalAngle) * sin(horizontalAngle), sin(verticalAngle), cos(verticalAngle) * cos(horizontalAngle));
-		right = glm::vec3(sin(horizontalAngle - M_PI / 2.0f), 0.0f, cos(horizontalAngle - M_PI / 2.0f));
-		up = glm::cross(right, direction);
-
-		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-		{
-			position += direction * deltaTime * speed;
-		}
-		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-		{
-			position -= direction * deltaTime * speed;
-		}
-		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-		{
-			position += right * deltaTime * speed;
-		}
-		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-		{
-			position -= right * deltaTime * speed;
-		}
+		getCameraMovementInput();
 
 		// identity matrix
 		glm::mat4 iMatrix(1.0f);
@@ -551,4 +533,34 @@ void FramebufferSizeChangedCallback(GLFWwindow *window, int width, int height)
 	// Whenever the size of the framebuffer changed (due to window resizing, etc.),
 	// update the dimensions of the region to the new size
 	glViewport(0, 0, width, height);
+}
+
+void getCameraMovementInput()
+{
+	glfwGetCursorPos(window, &xpos, &ypos);
+	glfwSetCursorPos(window, (double)windowWidth / 2, (double)windowHeight / 2);
+
+	horizontalAngle += mouseSpeed * deltaTime * float(windowWidth / 2 - xpos);
+	verticalAngle += mouseSpeed * deltaTime * float(windowHeight / 2 - ypos);
+
+	direction = glm::vec3(cos(verticalAngle) * sin(horizontalAngle), sin(verticalAngle), cos(verticalAngle) * cos(horizontalAngle));
+	right = glm::vec3(sin(horizontalAngle - M_PI / 2.0f), 0.0f, cos(horizontalAngle - M_PI / 2.0f));
+	up = glm::cross(right, direction);
+
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+	{
+		position += direction * deltaTime * speed;
+	}
+	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+	{
+		position -= direction * deltaTime * speed;
+	}
+	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+	{
+		position += right * deltaTime * speed;
+	}
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+	{
+		position -= right * deltaTime * speed;
+	}
 }
