@@ -60,7 +60,7 @@ GLuint loadSkybox(std::vector<std::string> faces)
 }
 
 GLFWwindow *window;
-void getCameraMovementInput();
+void getInput();
 
 // window size
 GLfloat windowWidth, windowHeight;
@@ -308,8 +308,8 @@ int main()
 	lastTime = glfwGetTime();
 
 	// DIRECTIONAL LIGHT
-	glm::vec3 directionalLightPosition(3.0f, 3.0f, -7.0f);
-	glm::vec3 directionalLightDirection(-1.0f, -1.0f, 1.0f);
+	glm::vec3 directionalLightPosition(-3.0f, 3.0f, -7.0f);
+	glm::vec3 directionalLightDirection(1.0f, -1.0f, 1.0f);
 	glm::vec3 directionalLightAmbient(1.0f, 1.0f, 1.0f);
 	glm::vec3 directionalLightDiffuse(0.75f, 0.75f, 0.75f);
 	glm::vec3 directionalLightSpecular(1.5f, 0.5f, 1.5f);
@@ -323,7 +323,7 @@ int main()
 		deltaTime = currentTime - lastTime;
 		lastTime = currentTime;
 
-		getCameraMovementInput();
+		getInput();
 
 		// identity matrix
 		glm::mat4 iMatrix(1.0f);
@@ -358,6 +358,8 @@ int main()
 		planeMatrix = glm::translate(planeMatrix, glm::vec3(0, -0.5f, 0));
 		// skybox
 		glm::mat4 skyboxMatrix = glm::scale(iMatrix, glm::vec3(50.0f, 50.0f, 50.0f));
+
+
 
 
 		// SHADOW PASS
@@ -535,7 +537,7 @@ void FramebufferSizeChangedCallback(GLFWwindow *window, int width, int height)
 	glViewport(0, 0, width, height);
 }
 
-void getCameraMovementInput()
+void getInput()
 {
 	glfwGetCursorPos(window, &xpos, &ypos);
 	glfwSetCursorPos(window, (double)windowWidth / 2, (double)windowHeight / 2);
