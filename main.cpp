@@ -61,9 +61,8 @@ public:
 		setUpMesh();
 	}
 
-	void Draw(GLuint shader)
+	void Draw(GLuint shader, glm::mat4 transform)
 	{
-		glm::mat4 transform = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0, 1, 0));
 		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(transform));
 
 		glBindVertexArray(VAO);
@@ -104,11 +103,11 @@ public:
 	{
 		loadModel(path);
 	}
-	void Draw(GLuint shader)
+	void Draw(GLuint shader, glm::mat4 transform)
 	{
 		for(unsigned int i = 0; i < meshes.size(); i++)
 		{
-			meshes[i].Draw(shader);
+			meshes[i].Draw(shader, transform);
 		}
 
 	}
@@ -467,6 +466,10 @@ int main()
 	Model model = Model("Bedroom.obj");
 
 	glfwSetMouseButtonCallback(window, mouse_button_callback);
+
+	// identity matrix
+	glm::mat4 iMatrix(1.0f);
+
 	// Render loop
 	while(!glfwWindowShouldClose(window))
 	{
@@ -474,10 +477,21 @@ int main()
 		deltaTime = currentTime - lastTime;
 		lastTime = currentTime;
 
-		getInput();
+		//getInput();
 
-		// identity matrix
-		glm::mat4 iMatrix(1.0f);
+		if(toggled)
+		{
+			position.x = glm::sin(currentTime * 0.5f) * 15.0f;
+			position.z = glm::cos(currentTime * 0.5f) * 15.0f;
+			position.y = 10.0f;
+		}
+		else
+		{
+			position.x = glm::sin(currentTime * 0.5f) * 5.0f;
+			position.z = glm::cos(currentTime * 0.5f) * 5.0f;
+		}
+		cameraDirection = glm::normalize(-position);
+		cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
 
 		// MVP uniforms
 		glm::mat4 viewMatrix = glm::lookAt(position, position + cameraDirection, cameraUp);
@@ -504,6 +518,9 @@ int main()
 		fifthMatrix = glm::translate(fifthMatrix, glm::vec3(-2.0f, 0.8f, -5.0f));
 		fifthMatrix = glm::rotate(fifthMatrix, glm::radians(23.0f), glm::vec3(1.0f, 1.0f, 0.0f));
 		fifthMatrix = glm::rotate(fifthMatrix, glm::radians(currentTime * 60.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+		// bedroom
+		glm::mat4 bedroomMatrix = glm::scale(iMatrix, glm::vec3(5.0f, 5.0f, 5.0f));
+		bedroomMatrix = glm::rotate(bedroomMatrix, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 		// skybox
 		glm::mat4 skyboxMatrix = glm::scale(iMatrix, glm::vec3(50.0f, 50.0f, 50.0f));
 
@@ -519,7 +536,7 @@ int main()
 
 		if(toggled)
 		{
-			model.Draw(depthShader);
+			model.Draw(depthShader, bedroomMatrix);
 		}
 		else
 		{
@@ -560,7 +577,7 @@ int main()
 		if(toggled)
 		{
 			glUniform1i(glGetUniformLocation(mainShader, "reflective"), 0);
-			model.Draw(mainShader);
+			model.Draw(mainShader, bedroomMatrix);
 		}
 		else
 		{
