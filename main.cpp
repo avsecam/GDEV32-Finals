@@ -241,6 +241,7 @@ GLfloat currentTime, deltaTime, lastTime;
 
 // what to render
 int toggle(0);
+bool reflectionToggle(false);
 
 int main()
 {
@@ -600,17 +601,19 @@ int main()
 		glUniformMatrix4fv(glGetUniformLocation(mainShader, "lightProjection"), 1, GL_FALSE, glm::value_ptr(directionalLightProjectionMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(mainShader, "lightView"), 1, GL_FALSE, glm::value_ptr(directionalLightViewMatrix));
 
+
+		glUniform1i(glGetUniformLocation(mainShader, "reflective"), 0);
+		if(reflectionToggle)
+			glUniform1i(glGetUniformLocation(mainShader, "reflective"), 1);
+
 		if(toggle == 1)
 		{
-			glUniform1i(glGetUniformLocation(mainShader, "reflective"), 0);
 			bedroom.Draw(mainShader, bedroomMatrix);
 		} else if(toggle == 2)
 		{
-			glUniform1i(glGetUniformLocation(mainShader, "reflective"), 1);
 			monkey.Draw(mainShader, monkeyMatrix);
 		} else
 		{
-			glUniform1i(glGetUniformLocation(mainShader, "reflective"), 1);
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
 			glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(firstMatrix));
 			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
@@ -754,20 +757,16 @@ void getInput()
 	cameraRight = glm::vec3(sin(horizontalAngle - M_PI / 2.0f), 0.0f, cos(horizontalAngle - M_PI / 2.0f));
 	cameraUp = glm::cross(cameraRight, cameraDirection);*/
 
-	if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS and position.y <= 75.0f)
-	{
+	if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS and position.y <= 50.0f)
 		position.y += 0.1f;
-	}
 	if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS and position.y >= -30.0f)
-	{
 		position.y -= 0.1f;
-	}
 }
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
 	if(button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS)
-	{
 		toggle = (toggle < 2) ? toggle + 1 : 0;
-	}
+	if(button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
+		reflectionToggle = !reflectionToggle;
 }
