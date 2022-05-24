@@ -61,12 +61,10 @@ public:
 
 	void Draw(GLuint shader)
 	{
-		glm::mat4 scale = glm::scale(glm::mat4(1.0f), glm::vec3(1.0f, 1.0f, 1.0f));
-		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(scale));
+		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
 
 		glBindVertexArray(VAO);
 		glDrawElements(GL_TRIANGLES, static_cast<unsigned int>(indices.size()), GL_UNSIGNED_INT, 0);
-		glBindVertexArray(0);
 	}
 private:
 	unsigned int VBO, EBO;
@@ -238,6 +236,9 @@ GLdouble xpos, ypos;
 // time
 GLfloat currentTime, deltaTime, lastTime;
 
+// what to render
+bool toggled(false);
+
 int main()
 {
 	// Initialize GLFW
@@ -322,12 +323,6 @@ int main()
 	vertices[22] = { 0.5f, -0.5f, -0.5f, 0, 255, 255 };
 	vertices[23] = { -0.5f, -0.5f, -0.5f, 0, 255, 255 };
 
-	// PLANE that faces upwards
-	vertices[24] = { -0.5f, 0.5f, -0.5f, 250, 250, 250 };
-	vertices[25] = { 0.5f, 0.5f, -0.5f, 250, 250, 250 };
-	vertices[26] = { 0.5f, 0.5f, 0.5f, 250, 250, 250 };
-	vertices[27] = { -0.5f, 0.5f, 0.5f, 250, 250, 250 };
-
 	// normals and UV
 	for(size_t i = 0; i < 28; i += 4)
 	{
@@ -377,9 +372,6 @@ int main()
 			16, 17, 18, 16, 18, 19,
 			20, 21, 22, 20, 22, 23 };
 
-	GLuint planeIndices[] = {
-			24, 25, 26, 24, 26, 27 };
-
 	// VBO setup
 	GLuint vbo;
 	glGenBuffers(1, &vbo);
@@ -391,11 +383,6 @@ int main()
 	glGenBuffers(1, &cubeEbo);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(cubeIndices), cubeIndices, GL_STATIC_DRAW);
-
-	GLuint planeEbo;
-	glGenBuffers(1, &planeEbo);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, planeEbo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(planeIndices), planeIndices, GL_STATIC_DRAW);
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
@@ -462,17 +449,16 @@ int main()
 	glEnable(GL_DEPTH_TEST);
 
 	GLint cubeIndicesSize = sizeof(cubeIndices) / sizeof(cubeIndices[0]);
-	GLint planeIndicesSize = sizeof(planeIndices) / sizeof(planeIndices[0]);
 
 	lastTime = glfwGetTime();
 
 	// DIRECTIONAL LIGHT
-	glm::vec3 directionalLightPosition(-3.0f, 3.0f, -7.0f);
+	glm::vec3 directionalLightPosition(0.0f, 6.0f, -4.0f);
 	glm::vec3 directionalLightDirection(1.0f, -1.0f, 1.0f);
 	glm::vec3 directionalLightAmbient(1.0f, 1.0f, 1.0f);
 	glm::vec3 directionalLightDiffuse(0.75f, 0.75f, 0.75f);
 	glm::vec3 directionalLightSpecular(1.5f, 0.5f, 1.5f);
-	glm::mat4 directionalLightProjectionMatrix = glm::ortho(-15.0f, 10.0f, -5.0f, 10.0f, 0.0f, 20.0f);
+	glm::mat4 directionalLightProjectionMatrix = glm::ortho(-20.0f, 15.0f, -10.0f, 15.0f, 0.0f, 20.0f);
 	glm::mat4 directionalLightViewMatrix = glm::lookAt(directionalLightPosition, directionalLightPosition + directionalLightDirection, glm::vec3(0, 1, 0));
 
 	Model model = Model("Bedroom.obj");
@@ -514,13 +500,8 @@ int main()
 		fifthMatrix = glm::translate(fifthMatrix, glm::vec3(-2.0f, 0.8f, -5.0f));
 		fifthMatrix = glm::rotate(fifthMatrix, glm::radians(23.0f), glm::vec3(1.0f, 1.0f, 0.0f));
 		fifthMatrix = glm::rotate(fifthMatrix, glm::radians(currentTime * 60.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-		// plane
-		glm::mat4 planeMatrix = glm::scale(iMatrix, glm::vec3(10.0f, 1.0f, 10.0f));
-		planeMatrix = glm::translate(planeMatrix, glm::vec3(0, -0.5f, 0));
 		// skybox
 		glm::mat4 skyboxMatrix = glm::scale(iMatrix, glm::vec3(50.0f, 50.0f, 50.0f));
-
-
 
 
 		// SHADOW PASS
@@ -532,21 +513,24 @@ int main()
 		glUniformMatrix4fv(glGetUniformLocation(depthShader, "lightProjection"), 1, GL_FALSE, glm::value_ptr(directionalLightProjectionMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(depthShader, "lightView"), 1, GL_FALSE, glm::value_ptr(directionalLightViewMatrix));
 
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
-		glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(firstMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(secondMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(thirdMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(fourthMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(fifthMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, planeEbo);
-		glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(planeMatrix));
-		glDrawElements(GL_TRIANGLES, planeIndicesSize, GL_UNSIGNED_INT, 0);
-
+		if(toggled)
+		{
+			model.Draw(depthShader);
+		}
+		else
+		{
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
+			glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(firstMatrix));
+			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+			glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(secondMatrix));
+			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+			glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(thirdMatrix));
+			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+			glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(fourthMatrix));
+			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+			glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(fifthMatrix));
+			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+		}
 
 		// RENDER PASS
 		glUseProgram(mainShader);
@@ -569,38 +553,42 @@ int main()
 		glUniformMatrix4fv(glGetUniformLocation(mainShader, "lightProjection"), 1, GL_FALSE, glm::value_ptr(directionalLightProjectionMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(mainShader, "lightView"), 1, GL_FALSE, glm::value_ptr(directionalLightViewMatrix));
 
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
-		glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(firstMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(secondMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(thirdMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(fourthMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(fifthMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, planeEbo);
-		glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(planeMatrix));
-		glDrawElements(GL_TRIANGLES, planeIndicesSize, GL_UNSIGNED_INT, 0);
+		if(toggled)
+		{
+			model.Draw(mainShader);
+		}
+		else
+		{
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
+			glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(firstMatrix));
+			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+			glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(secondMatrix));
+			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+			glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(thirdMatrix));
+			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+			glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(fourthMatrix));
+			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+			glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(fifthMatrix));
+			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+		}
 
-		model.Draw(mainShader);
+		if(!toggled)
+		{
+			// SKYBOX PASS
+			glDepthFunc(GL_LEQUAL);
+			glUseProgram(skyboxShader);
+			glm::mat4 skyboxViewMatrix = glm::mat4(glm::mat3(viewMatrix));
+			glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "view"), 1, GL_FALSE, glm::value_ptr(skyboxViewMatrix));
+			glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 
+			glActiveTexture(GL_TEXTURE0);
 
-		// SKYBOX PASS
-		glDepthFunc(GL_LEQUAL);
-		glUseProgram(skyboxShader);
-		glm::mat4 skyboxViewMatrix = glm::mat4(glm::mat3(viewMatrix));
-		glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "view"), 1, GL_FALSE, glm::value_ptr(skyboxViewMatrix));
-		glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
+			glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "model"), 1, GL_FALSE, glm::value_ptr(skyboxMatrix));
+			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
 
-		glActiveTexture(GL_TEXTURE0);
-
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
-		glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "model"), 1, GL_FALSE, glm::value_ptr(skyboxMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-
-		glDepthFunc(GL_LESS);
+			glDepthFunc(GL_LESS);
+		}
 
 		// CLEAR
 		glBindVertexArray(0);
@@ -727,5 +715,9 @@ void getInput()
 	if(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
 	{
 		position -= cameraRight * deltaTime * speed;
+	}
+	if(glfwGetKey(window, GLFW_KEY_TAB) == GLFW_PRESS)
+	{
+		toggled = !toggled;
 	}
 }
