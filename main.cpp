@@ -2,6 +2,9 @@
 // Otherwise, GLAD will complain about gl.h being already included.
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+#include <assimp/Importer.hpp>
 
 #define _USE_MATH_DEFINES
 #include <cmath>
@@ -17,18 +20,158 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+using namespace std;
 
-GLuint CreateShaderProgram(const std::string &vertexShaderFilePath, const std::string &fragmentShaderFilePath);
-GLuint CreateShaderFromFile(const GLuint &shaderType, const std::string &shaderFilePath);
-GLuint CreateShaderFromSource(const GLuint &shaderType, const std::string &shaderSource);
+GLuint CreateShaderProgram(const std::string& vertexShaderFilePath, const std::string& fragmentShaderFilePath);
+GLuint CreateShaderFromFile(const GLuint& shaderType, const std::string& shaderFilePath);
+GLuint CreateShaderFromSource(const GLuint& shaderType, const std::string& shaderSource);
 
-void FramebufferSizeChangedCallback(GLFWwindow *window, int width, int height);
+void FramebufferSizeChangedCallback(GLFWwindow* window, int width, int height);
 
 struct Vertex
 {
 	GLfloat x, y, z;		// Position
 	GLubyte r, g, b;		// Color
 	GLfloat nx, ny, nz; // Normals
+	GLfloat u, v;
+};
+
+struct Texture
+{
+	unsigned int id;
+	string type;
+};
+
+class Mesh 
+{
+	public:
+		vector<Vertex> vertices;
+		vector<unsigned int> indices;
+		vector<Texture> textures;
+
+		Mesh(vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures)
+		{
+			this->vertices = vertices;
+			this->indices = indices;
+			this->textures = textures;
+
+			setUpMesh();
+		}
+
+		void Draw()
+		{
+			glBindVertexArray(VAO);
+			glDrawElements(GL_TRIANGLES, static_cast<unsigned int>(indices.size()), GL_UNSIGNED_INT, 0);
+			glBindVertexArray(0);
+		}
+	private:
+		unsigned int VAO, VBO, EBO;
+
+		void setUpMesh()
+		{
+			glGenVertexArrays(1, &VAO);
+			glGenBuffers(1, &VBO);
+			glGenBuffers(1, &EBO);
+
+			glBindVertexArray(VAO);
+			glBindBuffer(GL_ARRAY_BUFFER, VBO);
+
+			glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), &vertices[0], GL_STATIC_DRAW);
+
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+			glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
+
+			glEnableVertexAttribArray(0);
+			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
+
+			glEnableVertexAttribArray(1);
+			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)24);
+
+			glEnableVertexAttribArray(2);
+			glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)12);
+
+			glBindVertexArray(0);
+		}
+};
+
+class Model
+{
+	public:
+		Model(char* path)
+		{
+			loadModel(path);
+		}
+		void Draw()
+		{
+			for (unsigned int i = 0; i < meshes.size(); i++)
+				meshes[i].Draw();
+		}
+	private:
+		vector<Mesh> meshes;
+		string directory;
+
+		void loadModel(string path)
+		{
+			Assimp::Importer import;
+			const aiScene* scene = import.ReadFile(path, aiProcess_Triangulate | aiProcess_FlipUVs);
+
+			if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
+			{
+				cout << "ERROR::ASSIMP::" << import.GetErrorString() << endl;
+				return;
+			}
+			directory = path.substr(0, path.find_last_of('/'));
+
+			processNode(scene->mRootNode, scene);
+		}
+		void processNode(aiNode* node, const aiScene* scene)
+		{
+			for (unsigned int i = 0; i < node->mNumMeshes; i++)
+			{
+				aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
+				meshes.push_back(processMesh(mesh, scene));
+			}
+
+			for (unsigned int i = 0; i < node->mNumChildren; i++)
+			{
+				processNode(node->mChildren[i], scene);
+			}
+		}
+		Mesh processMesh(aiMesh* mesh, const aiScene* scene)
+		{
+			vector<Vertex> vertices;
+			vector<unsigned int> indices;
+			vector<Texture> textures;
+			//processes vertices
+			for (unsigned int i = 0; i < mesh->mNumVertices; i++)
+			{
+				Vertex vertex;
+
+				vertex.x = mesh->mVertices[i].x;
+				vertex.y = mesh->mVertices[i].y;
+				vertex.z = mesh->mVertices[i].z;
+
+				vertex.nx = mesh->mNormals[i].x;
+				vertex.ny = mesh->mNormals[i].y;
+				vertex.nz = mesh->mNormals[i].z;
+
+				//no textures first
+				vertex.u = 0.0f;
+				vertex.v = 0.0f;
+
+				vertices.push_back(vertex);
+			}
+			//process indices
+			for (unsigned int i = 0; i < mesh->mNumFaces; i++)
+			{
+				aiFace face = mesh->mFaces[i];
+				for (unsigned int l = 0; j < face.mNumIndices; j++)
+				{
+					indices.push_back(face.mIndices[j]);
+				}
+			}
+		}
+		
 };
 
 GLuint loadSkybox(std::vector<std::string> faces)
@@ -40,8 +183,8 @@ GLuint loadSkybox(std::vector<std::string> faces)
 	GLint width, height, numOfChannels;
 	for (size_t i = 0; i < faces.size(); ++i)
 	{
-		unsigned char *data = stbi_load(faces[i].c_str(), &width, &height, &numOfChannels, 0);
-		if(data)
+		unsigned char* data = stbi_load(faces[i].c_str(), &width, &height, &numOfChannels, 0);
+		if (data)
 		{
 			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
 				0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
@@ -59,7 +202,7 @@ GLuint loadSkybox(std::vector<std::string> faces)
 	return textureID;
 }
 
-GLFWwindow *window;
+GLFWwindow* window;
 void getInput();
 
 // window size
@@ -128,46 +271,46 @@ int main()
 
 	// CUBE
 	// front
-	vertices[0] = {-0.5f, 0.5f, 0.5f, 255, 0, 0};
-	vertices[1] = {0.5f, 0.5f, 0.5f, 255, 0, 0};
-	vertices[2] = {0.5f, -0.5f, 0.5f, 255, 0, 0};
-	vertices[3] = {-0.5f, -0.5f, 0.5f, 255, 0, 0};
+	vertices[0] = { -0.5f, 0.5f, 0.5f, 255, 0, 0 };
+	vertices[1] = { 0.5f, 0.5f, 0.5f, 255, 0, 0 };
+	vertices[2] = { 0.5f, -0.5f, 0.5f, 255, 0, 0 };
+	vertices[3] = { -0.5f, -0.5f, 0.5f, 255, 0, 0 };
 
 	// back
-	vertices[4] = {0.5f, 0.5f, -0.5f, 0, 255, 0};
-	vertices[5] = {-0.5f, 0.5f, -0.5f, 0, 255, 0};
-	vertices[6] = {-0.5f, -0.5f, -0.5f, 0, 255, 0};
-	vertices[7] = {0.5f, -0.5f, -0.5f, 0, 255, 0};
+	vertices[4] = { 0.5f, 0.5f, -0.5f, 0, 255, 0 };
+	vertices[5] = { -0.5f, 0.5f, -0.5f, 0, 255, 0 };
+	vertices[6] = { -0.5f, -0.5f, -0.5f, 0, 255, 0 };
+	vertices[7] = { 0.5f, -0.5f, -0.5f, 0, 255, 0 };
 
 	// left
-	vertices[8] = {-0.5f, 0.5f, -0.5f, 0, 0, 255};
-	vertices[9] = {-0.5f, 0.5f, 0.5f, 0, 0, 255};
-	vertices[10] = {-0.5f, -0.5f, 0.5f, 0, 0, 255};
-	vertices[11] = {-0.5f, -0.5f, -0.5f, 0, 0, 255};
+	vertices[8] = { -0.5f, 0.5f, -0.5f, 0, 0, 255 };
+	vertices[9] = { -0.5f, 0.5f, 0.5f, 0, 0, 255 };
+	vertices[10] = { -0.5f, -0.5f, 0.5f, 0, 0, 255 };
+	vertices[11] = { -0.5f, -0.5f, -0.5f, 0, 0, 255 };
 
 	// right
-	vertices[12] = {0.5f, 0.5f, 0.5f, 255, 255, 0};
-	vertices[13] = {0.5f, 0.5f, -0.5f, 255, 255, 0};
-	vertices[14] = {0.5f, -0.5f, -0.5f, 255, 255, 0};
-	vertices[15] = {0.5f, -0.5f, 0.5f, 255, 255, 0};
+	vertices[12] = { 0.5f, 0.5f, 0.5f, 255, 255, 0 };
+	vertices[13] = { 0.5f, 0.5f, -0.5f, 255, 255, 0 };
+	vertices[14] = { 0.5f, -0.5f, -0.5f, 255, 255, 0 };
+	vertices[15] = { 0.5f, -0.5f, 0.5f, 255, 255, 0 };
 
 	// top
-	vertices[16] = {-0.5f, 0.5f, -0.5f, 255, 0, 255};
-	vertices[17] = {0.5f, 0.5f, -0.5f, 255, 0, 255};
-	vertices[18] = {0.5f, 0.5f, 0.5f, 255, 0, 255};
-	vertices[19] = {-0.5f, 0.5f, 0.5f, 255, 0, 255};
+	vertices[16] = { -0.5f, 0.5f, -0.5f, 255, 0, 255 };
+	vertices[17] = { 0.5f, 0.5f, -0.5f, 255, 0, 255 };
+	vertices[18] = { 0.5f, 0.5f, 0.5f, 255, 0, 255 };
+	vertices[19] = { -0.5f, 0.5f, 0.5f, 255, 0, 255 };
 
 	// bottom
-	vertices[20] = {-0.5f, -0.5f, 0.5f, 0, 255, 255};
-	vertices[21] = {0.5f, -0.5f, 0.5f, 0, 255, 255};
-	vertices[22] = {0.5f, -0.5f, -0.5f, 0, 255, 255};
-	vertices[23] = {-0.5f, -0.5f, -0.5f, 0, 255, 255};
+	vertices[20] = { -0.5f, -0.5f, 0.5f, 0, 255, 255 };
+	vertices[21] = { 0.5f, -0.5f, 0.5f, 0, 255, 255 };
+	vertices[22] = { 0.5f, -0.5f, -0.5f, 0, 255, 255 };
+	vertices[23] = { -0.5f, -0.5f, -0.5f, 0, 255, 255 };
 
 	// PLANE that faces upwards
-	vertices[24] = {-0.5f, 0.5f, -0.5f, 250, 250, 250};
-	vertices[25] = {0.5f, 0.5f, -0.5f, 250, 250, 250};
-	vertices[26] = {0.5f, 0.5f, 0.5f, 250, 250, 250};
-	vertices[27] = {-0.5f, 0.5f, 0.5f, 250, 250, 250};
+	vertices[24] = { -0.5f, 0.5f, -0.5f, 250, 250, 250 };
+	vertices[25] = { 0.5f, 0.5f, -0.5f, 250, 250, 250 };
+	vertices[26] = { 0.5f, 0.5f, 0.5f, 250, 250, 250 };
+	vertices[27] = { -0.5f, 0.5f, 0.5f, 250, 250, 250 };
 
 	// normals and UV
 	for (size_t i = 0; i < 28; i += 4)
@@ -216,10 +359,10 @@ int main()
 			8, 9, 10, 8, 10, 11,
 			12, 13, 14, 12, 14, 15,
 			16, 17, 18, 16, 18, 19,
-			20, 21, 22, 20, 22, 23};
+			20, 21, 22, 20, 22, 23 };
 
 	GLuint planeIndices[] = {
-			24, 25, 26, 24, 26, 27};
+			24, 25, 26, 24, 26, 27 };
 
 	// VBO setup
 	GLuint vbo;
@@ -246,11 +389,11 @@ int main()
 	glBindVertexArray(objectVAO);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)offsetof(Vertex, x));
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, x));
 	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex), (void *)(offsetof(Vertex, r)));
+	glVertexAttribPointer(1, 3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex), (void*)(offsetof(Vertex, r)));
 	glEnableVertexAttribArray(2);
-	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)(offsetof(Vertex, nx)));
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(offsetof(Vertex, nx)));
 
 	glBindVertexArray(0);
 
@@ -273,10 +416,10 @@ int main()
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthTexture, 0);
 	glDrawBuffer(GL_NONE);
 
-	if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 		std::cerr << "Framebuffer incomplete...\n";
 
-	std::vector<std::string> faces {
+	std::vector<std::string> faces{
 		"./skybox/right.jpg",
 		"./skybox/left.jpg",
 		"./skybox/top.jpg",
@@ -422,7 +565,7 @@ int main()
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, planeEbo);
 		glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(planeMatrix));
 		glDrawElements(GL_TRIANGLES, planeIndicesSize, GL_UNSIGNED_INT, 0);
-		
+
 
 		// SKYBOX PASS
 		glDepthFunc(GL_LEQUAL);
@@ -432,7 +575,7 @@ int main()
 		glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 
 		glActiveTexture(GL_TEXTURE0);
-		
+
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
 		glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "model"), 1, GL_FALSE, glm::value_ptr(skyboxMatrix));
 		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
@@ -457,7 +600,7 @@ int main()
 	return 0;
 }
 
-GLuint CreateShaderProgram(const std::string &vertexShaderFilePath, const std::string &fragmentShaderFilePath)
+GLuint CreateShaderProgram(const std::string& vertexShaderFilePath, const std::string& fragmentShaderFilePath)
 {
 	GLuint vertexShader = CreateShaderFromFile(GL_VERTEX_SHADER, vertexShaderFilePath);
 	GLuint fragmentShader = CreateShaderFromFile(GL_FRAGMENT_SHADER, fragmentShaderFilePath);
@@ -487,7 +630,7 @@ GLuint CreateShaderProgram(const std::string &vertexShaderFilePath, const std::s
 	return program;
 }
 
-GLuint CreateShaderFromFile(const GLuint &shaderType, const std::string &shaderFilePath)
+GLuint CreateShaderFromFile(const GLuint& shaderType, const std::string& shaderFilePath)
 {
 	std::ifstream shaderFile(shaderFilePath);
 	if (shaderFile.fail())
@@ -507,11 +650,11 @@ GLuint CreateShaderFromFile(const GLuint &shaderType, const std::string &shaderF
 	return CreateShaderFromSource(shaderType, shaderSource);
 }
 
-GLuint CreateShaderFromSource(const GLuint &shaderType, const std::string &shaderSource)
+GLuint CreateShaderFromSource(const GLuint& shaderType, const std::string& shaderSource)
 {
 	GLuint shader = glCreateShader(shaderType);
 
-	const char *shaderSourceCStr = shaderSource.c_str();
+	const char* shaderSourceCStr = shaderSource.c_str();
 	GLint shaderSourceLen = static_cast<GLint>(shaderSource.length());
 	glShaderSource(shader, 1, &shaderSourceCStr, &shaderSourceLen);
 	glCompileShader(shader);
@@ -530,7 +673,7 @@ GLuint CreateShaderFromSource(const GLuint &shaderType, const std::string &shade
 	return shader;
 }
 
-void FramebufferSizeChangedCallback(GLFWwindow *window, int width, int height)
+void FramebufferSizeChangedCallback(GLFWwindow* window, int width, int height)
 {
 	// Whenever the size of the framebuffer changed (due to window resizing, etc.),
 	// update the dimensions of the region to the new size
