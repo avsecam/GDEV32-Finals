@@ -173,6 +173,17 @@ class Model
 					indices.push_back(face.mIndices[j]);
 				}
 			}
+
+			/*if (mesh->mMaterialIndex >= 0)
+			{
+				aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
+				vector<Texture> diffuseMaps = loadMaterialTexture(material, aiTextureType_DIFFUSE, "texture_diffuse");
+				textures.insert(textures.end(), diffuseMaps.begin(), diffuseMaps.end());
+				vector<Texture> specularMaps = loadMaterialTexture(material, aiTextureType_SPECULAR, "texture_specular");
+				textures.insert(texture.end(), specularMaps.begin(), specularMaps.end());
+			}*/
+
+			return Mesh(vertices, indices, textures);
 		}
 		
 };
