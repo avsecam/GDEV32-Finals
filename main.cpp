@@ -67,6 +67,7 @@ public:
 
 		glBindVertexArray(VAO);
 		glDrawElements(GL_TRIANGLES, static_cast<unsigned int>(indices.size()), GL_UNSIGNED_INT, 0);
+		glBindVertexArray(0);
 	}
 private:
 	unsigned int VBO, EBO;
@@ -239,7 +240,7 @@ GLdouble xpos, ypos;
 GLfloat currentTime, deltaTime, lastTime;
 
 // what to render
-bool toggled(false);
+int toggle(0);
 
 int main()
 {
@@ -478,7 +479,8 @@ int main()
 	glm::mat4 directionalLightProjectionMatrix = glm::ortho(-20.0f, 20.0f, -50.0f, 50.0f, 0.0f, 30.0f);
 	glm::mat4 directionalLightViewMatrix = glm::lookAt(directionalLightPosition, directionalLightPosition + directionalLightDirection, glm::vec3(0, 1, 0));
 
-	Model model = Model("Bedroom.obj");
+	Model bedroom = Model("Bedroom.obj");
+	Model monkey = Model("Monkey.obj");
 
 	glfwSetMouseButtonCallback(window, mouse_button_callback);
 
@@ -494,7 +496,7 @@ int main()
 
 		getInput();
 
-		if(toggled)
+		if(toggle == 0)
 		{
 			position.x = glm::sin(currentTime * 0.5f) * 15.0f;
 			position.z = glm::cos(currentTime * 0.5f) * 15.0f;
@@ -535,8 +537,10 @@ int main()
 		glm::mat4 planeMatrix = glm::scale(iMatrix, glm::vec3(30.0f, 1.0f, 30.0f));
 		planeMatrix = glm::translate(planeMatrix, glm::vec3(0, -0.5f, 0));
 		// bedroom
-		glm::mat4 bedroomMatrix = glm::scale(iMatrix, glm::vec3(5.0f, 5.0f, 5.0f));
+		glm::mat4 bedroomMatrix = glm::scale(iMatrix, glm::vec3(7.0f, 7.0f, 7.0f));
 		bedroomMatrix = glm::rotate(bedroomMatrix, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		// monkey
+		glm::mat4 monkeyMatrix = glm::scale(iMatrix, glm::vec3(3.0f, 3.0f, 3.0f));
 		// skybox
 		glm::mat4 skyboxMatrix = glm::scale(iMatrix, glm::vec3(50.0f, 50.0f, 50.0f));
 
@@ -550,9 +554,12 @@ int main()
 		glUniformMatrix4fv(glGetUniformLocation(depthShader, "lightProjection"), 1, GL_FALSE, glm::value_ptr(directionalLightProjectionMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(depthShader, "lightView"), 1, GL_FALSE, glm::value_ptr(directionalLightViewMatrix));
 
-		if(toggled)
+		if(toggle == 1)
 		{
-			model.Draw(depthShader, bedroomMatrix);
+			bedroom.Draw(depthShader, bedroomMatrix);
+		} else if(toggle == 2)
+		{
+			monkey.Draw(depthShader, monkeyMatrix);
 		} else
 		{
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
@@ -593,10 +600,14 @@ int main()
 		glUniformMatrix4fv(glGetUniformLocation(mainShader, "lightProjection"), 1, GL_FALSE, glm::value_ptr(directionalLightProjectionMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(mainShader, "lightView"), 1, GL_FALSE, glm::value_ptr(directionalLightViewMatrix));
 
-		if(toggled)
+		if(toggle == 1)
 		{
 			glUniform1i(glGetUniformLocation(mainShader, "reflective"), 0);
-			model.Draw(mainShader, bedroomMatrix);
+			bedroom.Draw(mainShader, bedroomMatrix);
+		} else if(toggle == 2)
+		{
+			glUniform1i(glGetUniformLocation(mainShader, "reflective"), 1);
+			monkey.Draw(mainShader, monkeyMatrix);
 		} else
 		{
 			glUniform1i(glGetUniformLocation(mainShader, "reflective"), 1);
@@ -617,23 +628,21 @@ int main()
 			glDrawElements(GL_TRIANGLES, planeIndicesSize, GL_UNSIGNED_INT, 0);
 		}
 
-		if(!toggled)
-		{
-			// SKYBOX PASS
-			glDepthFunc(GL_LEQUAL);
-			glUseProgram(skyboxShader);
-			glm::mat4 skyboxViewMatrix = glm::mat4(glm::mat3(viewMatrix));
-			glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "view"), 1, GL_FALSE, glm::value_ptr(skyboxViewMatrix));
-			glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+		// SKYBOX PASS
+		glDepthFunc(GL_LEQUAL);
+		glUseProgram(skyboxShader);
+		glBindVertexArray(objectVAO);
+		glm::mat4 skyboxViewMatrix = glm::mat4(glm::mat3(viewMatrix));
+		glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "view"), 1, GL_FALSE, glm::value_ptr(skyboxViewMatrix));
+		glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 
-			glActiveTexture(GL_TEXTURE0);
+		glActiveTexture(GL_TEXTURE0);
 
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
-			glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "model"), 1, GL_FALSE, glm::value_ptr(skyboxMatrix));
-			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
+		glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "model"), 1, GL_FALSE, glm::value_ptr(skyboxMatrix));
+		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
 
-			glDepthFunc(GL_LESS);
-		}
+		glDepthFunc(GL_LESS);
 
 		// CLEAR
 		glBindVertexArray(0);
@@ -758,5 +767,7 @@ void getInput()
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
 	if(button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS)
-		toggled = !toggled;
+	{
+		toggle = (toggle < 2) ? toggle + 1 : 0;
+	}
 }
