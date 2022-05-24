@@ -99,7 +99,7 @@ private:
 class Model
 {
 public:
-	Model(string const &path)
+	Model(string const& path)
 	{
 		loadModel(path);
 	}
@@ -232,7 +232,7 @@ GLfloat mouseSpeed = 0.8f;
 glm::vec3 cameraDirection, cameraRight, cameraUp;
 
 // starting view position
-glm::vec3 position(0.0f, 3.0f, 5.0f);
+glm::vec3 position(0.0f, 13.0f, 5.0f);
 GLdouble xpos, ypos;
 
 // time
@@ -325,6 +325,12 @@ int main()
 	vertices[22] = { 0.5f, -0.5f, -0.5f, 0, 255, 255 };
 	vertices[23] = { -0.5f, -0.5f, -0.5f, 0, 255, 255 };
 
+	// PLANE that faces upwards
+	vertices[24] = { -0.5f, 0.5f, -0.5f, 250, 250, 250 };
+	vertices[25] = { 0.5f, 0.5f, -0.5f, 250, 250, 250 };
+	vertices[26] = { 0.5f, 0.5f, 0.5f, 250, 250, 250 };
+	vertices[27] = { -0.5f, 0.5f, 0.5f, 250, 250, 250 };
+
 	// normals and UV
 	for(size_t i = 0; i < 28; i += 4)
 	{
@@ -374,6 +380,9 @@ int main()
 			16, 17, 18, 16, 18, 19,
 			20, 21, 22, 20, 22, 23 };
 
+	GLuint planeIndices[] = {
+			24, 25, 26, 24, 26, 27 };
+
 	// VBO setup
 	GLuint vbo;
 	glGenBuffers(1, &vbo);
@@ -385,6 +394,11 @@ int main()
 	glGenBuffers(1, &cubeEbo);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(cubeIndices), cubeIndices, GL_STATIC_DRAW);
+
+	GLuint planeEbo;
+	glGenBuffers(1, &planeEbo);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, planeEbo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(planeIndices), planeIndices, GL_STATIC_DRAW);
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
@@ -451,6 +465,7 @@ int main()
 	glEnable(GL_DEPTH_TEST);
 
 	GLint cubeIndicesSize = sizeof(cubeIndices) / sizeof(cubeIndices[0]);
+	GLint planeIndicesSize = sizeof(planeIndices) / sizeof(planeIndices[0]);
 
 	lastTime = glfwGetTime();
 
@@ -460,7 +475,7 @@ int main()
 	glm::vec3 directionalLightAmbient(1.0f, 1.0f, 1.0f);
 	glm::vec3 directionalLightDiffuse(0.75f, 0.75f, 0.75f);
 	glm::vec3 directionalLightSpecular(1.5f, 0.5f, 1.5f);
-	glm::mat4 directionalLightProjectionMatrix = glm::ortho(-20.0f, 15.0f, -10.0f, 15.0f, 0.0f, 20.0f);
+	glm::mat4 directionalLightProjectionMatrix = glm::ortho(-20.0f, 20.0f, -50.0f, 50.0f, 0.0f, 30.0f);
 	glm::mat4 directionalLightViewMatrix = glm::lookAt(directionalLightPosition, directionalLightPosition + directionalLightDirection, glm::vec3(0, 1, 0));
 
 	Model model = Model("Bedroom.obj");
@@ -477,18 +492,16 @@ int main()
 		deltaTime = currentTime - lastTime;
 		lastTime = currentTime;
 
-		//getInput();
+		getInput();
 
 		if(toggled)
 		{
 			position.x = glm::sin(currentTime * 0.5f) * 15.0f;
 			position.z = glm::cos(currentTime * 0.5f) * 15.0f;
-			position.y = 10.0f;
-		}
-		else
+		} else
 		{
-			position.x = glm::sin(currentTime * 0.5f) * 5.0f;
-			position.z = glm::cos(currentTime * 0.5f) * 5.0f;
+			position.x = glm::sin(currentTime * 0.5f) * 24.0f;
+			position.z = glm::cos(currentTime * 0.5f) * 24.0f;
 		}
 		cameraDirection = glm::normalize(-position);
 		cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
@@ -501,23 +514,26 @@ int main()
 		// SET OBJECT TRANSFORMS
 		glBindVertexArray(objectVAO);
 		// cube
-		glm::mat4 firstMatrix = glm::scale(iMatrix, glm::vec3(2.0f, 2.0f, 2.0f));
-		firstMatrix = glm::translate(firstMatrix, glm::vec3(0.0f, 0.5f, 0.0f));
+		glm::mat4 firstMatrix = glm::scale(iMatrix, glm::vec3(6.0f, 6.0f, 6.0f));
+		firstMatrix = glm::translate(firstMatrix, glm::vec3(-1.5f, 0.5f, 0.0f));
 		firstMatrix = glm::rotate(firstMatrix, glm::radians(23.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-		glm::mat4 secondMatrix = glm::scale(iMatrix, glm::vec3(1.5f, 1.5f, 1.5f));
+		glm::mat4 secondMatrix = glm::scale(iMatrix, glm::vec3(4.5f, 4.5f, 4.5f));
 		secondMatrix = glm::translate(secondMatrix, glm::vec3(1.5f, 0.5f, 1.5f));
 		secondMatrix = glm::rotate(secondMatrix, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-		glm::mat4 thirdMatrix = glm::scale(iMatrix, glm::vec3(1.0f, 1.0f, 1.0f));
+		glm::mat4 thirdMatrix = glm::scale(iMatrix, glm::vec3(3.0f, 3.0f, 3.0f));
 		thirdMatrix = glm::translate(thirdMatrix, glm::vec3(2.5f, 2.0f, -2.0f));
 		thirdMatrix = glm::rotate(thirdMatrix, glm::radians(currentTime * 40.0f), glm::vec3(1.0f, 1.0f, 1.0f));
-		glm::mat4 fourthMatrix = glm::scale(iMatrix, glm::vec3(0.5f, 0.5f, 0.5f));
-		fourthMatrix = glm::translate(fourthMatrix, glm::vec3(5.0f, 3.5f, 5.0f));
+		glm::mat4 fourthMatrix = glm::scale(iMatrix, glm::vec3(1.5f, 1.5f, 1.5f));
+		fourthMatrix = glm::translate(fourthMatrix, glm::vec3(-2.0f, 3.5f, 5.0f));
 		fourthMatrix = glm::rotate(fourthMatrix, glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 		fourthMatrix = glm::rotate(fourthMatrix, glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-		glm::mat4 fifthMatrix = glm::scale(iMatrix, glm::vec3(0.5f, 2.0f, 0.5f));
-		fifthMatrix = glm::translate(fifthMatrix, glm::vec3(-2.0f, 0.8f, -5.0f));
+		glm::mat4 fifthMatrix = glm::scale(iMatrix, glm::vec3(1.5f, 6.0f, 1.5f));
+		fifthMatrix = glm::translate(fifthMatrix, glm::vec3(-0.0f, 0.8f, -5.0f));
 		fifthMatrix = glm::rotate(fifthMatrix, glm::radians(23.0f), glm::vec3(1.0f, 1.0f, 0.0f));
 		fifthMatrix = glm::rotate(fifthMatrix, glm::radians(currentTime * 60.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+		// plane
+		glm::mat4 planeMatrix = glm::scale(iMatrix, glm::vec3(30.0f, 1.0f, 30.0f));
+		planeMatrix = glm::translate(planeMatrix, glm::vec3(0, -0.5f, 0));
 		// bedroom
 		glm::mat4 bedroomMatrix = glm::scale(iMatrix, glm::vec3(5.0f, 5.0f, 5.0f));
 		bedroomMatrix = glm::rotate(bedroomMatrix, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -537,8 +553,7 @@ int main()
 		if(toggled)
 		{
 			model.Draw(depthShader, bedroomMatrix);
-		}
-		else
+		} else
 		{
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
 			glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(firstMatrix));
@@ -551,6 +566,10 @@ int main()
 			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
 			glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(fifthMatrix));
 			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, planeEbo);
+			glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(planeMatrix));
+			glDrawElements(GL_TRIANGLES, planeIndicesSize, GL_UNSIGNED_INT, 0);
 		}
 
 		// RENDER PASS
@@ -578,8 +597,7 @@ int main()
 		{
 			glUniform1i(glGetUniformLocation(mainShader, "reflective"), 0);
 			model.Draw(mainShader, bedroomMatrix);
-		}
-		else
+		} else
 		{
 			glUniform1i(glGetUniformLocation(mainShader, "reflective"), 1);
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
@@ -593,6 +611,10 @@ int main()
 			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
 			glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(fifthMatrix));
 			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, planeEbo);
+			glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(planeMatrix));
+			glDrawElements(GL_TRIANGLES, planeIndicesSize, GL_UNSIGNED_INT, 0);
 		}
 
 		if(!toggled)
@@ -713,31 +735,23 @@ void FramebufferSizeChangedCallback(GLFWwindow* window, int width, int height)
 
 void getInput()
 {
-	glfwGetCursorPos(window, &xpos, &ypos);
+	/*glfwGetCursorPos(window, &xpos, &ypos);
 	glfwSetCursorPos(window, (double)windowWidth / 2, (double)windowHeight / 2);
 
 	horizontalAngle += mouseSpeed * deltaTime * float(windowWidth / 2 - xpos);
-	verticalAngle += mouseSpeed * deltaTime * float(windowHeight / 2 - ypos);
+	verticalAngle += mouseSpeed * deltaTime * float(windowHeight / 2 - ypos);*/
 
-	cameraDirection = glm::vec3(cos(verticalAngle) * sin(horizontalAngle), sin(verticalAngle), cos(verticalAngle) * cos(horizontalAngle));
+	/*cameraDirection = glm::vec3(cos(verticalAngle) * sin(horizontalAngle), sin(verticalAngle), cos(verticalAngle) * cos(horizontalAngle));
 	cameraRight = glm::vec3(sin(horizontalAngle - M_PI / 2.0f), 0.0f, cos(horizontalAngle - M_PI / 2.0f));
-	cameraUp = glm::cross(cameraRight, cameraDirection);
+	cameraUp = glm::cross(cameraRight, cameraDirection);*/
 
-	if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+	if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS and position.y <= 75.0f)
 	{
-		position += cameraDirection * deltaTime * speed;
+		position.y += 0.1f;
 	}
-	if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+	if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS and position.y >= -30.0f)
 	{
-		position -= cameraDirection * deltaTime * speed;
-	}
-	if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-	{
-		position += cameraRight * deltaTime * speed;
-	}
-	if(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-	{
-		position -= cameraRight * deltaTime * speed;
+		position.y -= 0.1f;
 	}
 }
 
