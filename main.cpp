@@ -558,10 +558,12 @@ int main()
 
 		if(toggled)
 		{
+			glUniform1i(glGetUniformLocation(mainShader, "reflective"), 0);
 			model.Draw(mainShader);
 		}
 		else
 		{
+			glUniform1i(glGetUniformLocation(mainShader, "reflective"), 1);
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
 			glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(firstMatrix));
 			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
