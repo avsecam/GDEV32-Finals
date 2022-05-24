@@ -11,6 +11,7 @@ out vec4 fragColor;
 
 uniform sampler2D shadowMap;
 uniform samplerCube skybox;
+uniform bool reflective;
 
 const float AMBIENT_STRENGTH = 0.7f;
 
@@ -152,12 +153,20 @@ void main()
 
 	lightSum = ambientAverage + diffuseAndSpecularSum;
 
+	vec3 finalColor;
 	// REFLECTION
-	vec3 viewDirection = normalize(outPosition - viewPosition);
-	vec3 reflection = reflect(viewDirection, normalize(outNormal));
-	vec3 reflectionTexture = texture(skybox, reflection).rgb;
+	if(reflective)
+	{
+		vec3 viewDirection = normalize(outPosition - viewPosition);
+		vec3 reflection = reflect(viewDirection, normalize(outNormal));
+		vec3 reflectionTexture = texture(skybox, reflection).rgb;
 
-	vec3 finalColor = (lightSum) * outColor * reflectionTexture;
+		finalColor = (lightSum) * outColor * reflectionTexture;
+	}
+	else
+	{
+		finalColor = (lightSum) * outColor;
+	}
 	fragColor = vec4(finalColor, 1.f);
 
 	// debug

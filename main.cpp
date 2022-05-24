@@ -2,6 +2,9 @@
 // Otherwise, GLAD will complain about gl.h being already included.
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+#include <assimp/Importer.hpp>
 
 #define _USE_MATH_DEFINES
 #include <cmath>
@@ -17,19 +20,176 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+using namespace std;
 
-GLuint CreateShaderProgram(const std::string &vertexShaderFilePath, const std::string &fragmentShaderFilePath);
-GLuint CreateShaderFromFile(const GLuint &shaderType, const std::string &shaderFilePath);
-GLuint CreateShaderFromSource(const GLuint &shaderType, const std::string &shaderSource);
+GLuint CreateShaderProgram(const std::string& vertexShaderFilePath, const std::string& fragmentShaderFilePath);
+GLuint CreateShaderFromFile(const GLuint& shaderType, const std::string& shaderFilePath);
+GLuint CreateShaderFromSource(const GLuint& shaderType, const std::string& shaderSource);
 
-void FramebufferSizeChangedCallback(GLFWwindow *window, int width, int height);
+void FramebufferSizeChangedCallback(GLFWwindow* window, int width, int height);
+
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
 
 struct Vertex
 {
 	GLfloat x, y, z;		// Position
 	GLubyte r, g, b;		// Color
 	GLfloat nx, ny, nz; // Normals
+	GLfloat u, v;
 };
+
+struct Texture
+{
+	unsigned int id;
+	string type;
+};
+
+class Mesh
+{
+public:
+	vector<Vertex> vertices;
+	vector<unsigned int> indices;
+	vector<Texture> textures;
+	unsigned int VAO;
+
+	Mesh(vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures)
+	{
+		this->vertices = vertices;
+		this->indices = indices;
+		this->textures = textures;
+
+		setUpMesh();
+	}
+
+	void Draw(GLuint shader, glm::mat4 transform)
+	{
+		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(transform));
+
+		glBindVertexArray(VAO);
+		glDrawElements(GL_TRIANGLES, static_cast<unsigned int>(indices.size()), GL_UNSIGNED_INT, 0);
+	}
+private:
+	unsigned int VBO, EBO;
+
+	void setUpMesh()
+	{
+		glGenVertexArrays(1, &VAO);
+		glGenBuffers(1, &VBO);
+		glGenBuffers(1, &EBO);
+
+		glBindVertexArray(VAO);
+		glBindBuffer(GL_ARRAY_BUFFER, VBO);
+
+		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), &vertices[0], GL_STATIC_DRAW);
+
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
+
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, x));
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex), (void*)(offsetof(Vertex, r)));
+		glEnableVertexAttribArray(2);
+		glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(offsetof(Vertex, nx)));
+
+		glBindVertexArray(0);
+	}
+};
+
+class Model
+{
+public:
+	Model(string const &path)
+	{
+		loadModel(path);
+	}
+	void Draw(GLuint shader, glm::mat4 transform)
+	{
+		for(unsigned int i = 0; i < meshes.size(); i++)
+		{
+			meshes[i].Draw(shader, transform);
+		}
+
+	}
+private:
+	vector<Mesh> meshes;
+	string directory;
+
+	void loadModel(string path)
+	{
+		Assimp::Importer import;
+		const aiScene* scene = import.ReadFile(path, aiProcess_Triangulate | aiProcess_FlipUVs);
+
+		if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
+		{
+			cout << "ERROR::ASSIMP::" << import.GetErrorString() << endl;
+			return;
+		}
+		directory = path.substr(0, path.find_last_of('/'));
+
+		processNode(scene->mRootNode, scene);
+	}
+	void processNode(aiNode* node, const aiScene* scene)
+	{
+		for(unsigned int i = 0; i < node->mNumMeshes; i++)
+		{
+			aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
+			meshes.push_back(processMesh(mesh, scene));
+		}
+
+		for(unsigned int i = 0; i < node->mNumChildren; i++)
+		{
+			processNode(node->mChildren[i], scene);
+		}
+	}
+	Mesh processMesh(aiMesh* mesh, const aiScene* scene)
+	{
+		vector<Vertex> vertices;
+		vector<unsigned int> indices;
+		vector<Texture> textures;
+		//processes vertices
+		for(unsigned int i = 0; i < mesh->mNumVertices; i++)
+		{
+			Vertex vertex;
+
+			vertex.x = mesh->mVertices[i].x;
+			vertex.y = mesh->mVertices[i].y;
+			vertex.z = mesh->mVertices[i].z;
+
+			vertex.nx = mesh->mNormals[i].x;
+			vertex.ny = mesh->mNormals[i].y;
+			vertex.nz = mesh->mNormals[i].z;
+
+			//no textures first
+			vertex.u = 0.0f;
+			vertex.v = 0.0f;
+
+			vertices.push_back(vertex);
+		}
+		//process indices
+		for(unsigned int i = 0; i < mesh->mNumFaces; i++)
+		{
+			aiFace face = mesh->mFaces[i];
+			for(unsigned int j = 0; j < face.mNumIndices; j++)
+			{
+				indices.push_back(face.mIndices[j]);
+			}
+		}
+
+		/*if (mesh->mMaterialIndex >= 0)
+		{
+			aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
+			vector<Texture> diffuseMaps = loadMaterialTexture(material, aiTextureType_DIFFUSE, "texture_diffuse");
+			textures.insert(textures.end(), diffuseMaps.begin(), diffuseMaps.end());
+			vector<Texture> specularMaps = loadMaterialTexture(material, aiTextureType_SPECULAR, "texture_specular");
+			textures.insert(texture.end(), specularMaps.begin(), specularMaps.end());
+		}*/
+
+		return Mesh(vertices, indices, textures);
+	}
+
+};
+
 
 GLuint loadSkybox(std::vector<std::string> faces)
 {
@@ -38,15 +198,14 @@ GLuint loadSkybox(std::vector<std::string> faces)
 	glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
 
 	GLint width, height, numOfChannels;
-	for (size_t i = 0; i < faces.size(); ++i)
+	for(size_t i = 0; i < faces.size(); ++i)
 	{
-		unsigned char *data = stbi_load(faces[i].c_str(), &width, &height, &numOfChannels, 0);
+		unsigned char* data = stbi_load(faces[i].c_str(), &width, &height, &numOfChannels, 0);
 		if(data)
 		{
 			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
 				0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-		}
-		else
+		} else
 			std::cerr << "ERROR loading cubemap texture\n";
 		stbi_image_free(data);
 	}
@@ -59,7 +218,7 @@ GLuint loadSkybox(std::vector<std::string> faces)
 	return textureID;
 }
 
-GLFWwindow *window;
+GLFWwindow* window;
 void getInput();
 
 // window size
@@ -70,7 +229,7 @@ GLfloat horizontalAngle = M_PI;
 GLfloat verticalAngle = 0.0f;
 GLfloat speed = 4.0f;
 GLfloat mouseSpeed = 0.8f;
-glm::vec3 direction, right, up;
+glm::vec3 cameraDirection, cameraRight, cameraUp;
 
 // starting view position
 glm::vec3 position(0.0f, 3.0f, 5.0f);
@@ -79,11 +238,14 @@ GLdouble xpos, ypos;
 // time
 GLfloat currentTime, deltaTime, lastTime;
 
+// what to render
+bool toggled(false);
+
 int main()
 {
 	// Initialize GLFW
 	int glfwInitStatus = glfwInit();
-	if (glfwInitStatus == GLFW_FALSE)
+	if(glfwInitStatus == GLFW_FALSE)
 	{
 		std::cerr << "Failed to initialize GLFW!" << std::endl;
 		return 1;
@@ -102,7 +264,7 @@ int main()
 	windowWidth = 800;
 	windowHeight = 800;
 	window = glfwCreateWindow(windowWidth, windowHeight, "FINALS", nullptr, nullptr);
-	if (window == nullptr)
+	if(window == nullptr)
 	{
 		std::cerr << "Failed to create GLFW window!" << std::endl;
 		glfwTerminate();
@@ -116,7 +278,7 @@ int main()
 	glfwSetFramebufferSizeCallback(window, FramebufferSizeChangedCallback);
 
 	// Tell GLAD to load the OpenGL function pointers
-	if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress)))
+	if(!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress)))
 	{
 		std::cerr << "Failed to initialize GLAD!" << std::endl;
 		return 1;
@@ -128,49 +290,43 @@ int main()
 
 	// CUBE
 	// front
-	vertices[0] = {-0.5f, 0.5f, 0.5f, 255, 0, 0};
-	vertices[1] = {0.5f, 0.5f, 0.5f, 255, 0, 0};
-	vertices[2] = {0.5f, -0.5f, 0.5f, 255, 0, 0};
-	vertices[3] = {-0.5f, -0.5f, 0.5f, 255, 0, 0};
+	vertices[0] = { -0.5f, 0.5f, 0.5f, 255, 0, 0 };
+	vertices[1] = { 0.5f, 0.5f, 0.5f, 255, 0, 0 };
+	vertices[2] = { 0.5f, -0.5f, 0.5f, 255, 0, 0 };
+	vertices[3] = { -0.5f, -0.5f, 0.5f, 255, 0, 0 };
 
 	// back
-	vertices[4] = {0.5f, 0.5f, -0.5f, 0, 255, 0};
-	vertices[5] = {-0.5f, 0.5f, -0.5f, 0, 255, 0};
-	vertices[6] = {-0.5f, -0.5f, -0.5f, 0, 255, 0};
-	vertices[7] = {0.5f, -0.5f, -0.5f, 0, 255, 0};
+	vertices[4] = { 0.5f, 0.5f, -0.5f, 0, 255, 0 };
+	vertices[5] = { -0.5f, 0.5f, -0.5f, 0, 255, 0 };
+	vertices[6] = { -0.5f, -0.5f, -0.5f, 0, 255, 0 };
+	vertices[7] = { 0.5f, -0.5f, -0.5f, 0, 255, 0 };
 
 	// left
-	vertices[8] = {-0.5f, 0.5f, -0.5f, 0, 0, 255};
-	vertices[9] = {-0.5f, 0.5f, 0.5f, 0, 0, 255};
-	vertices[10] = {-0.5f, -0.5f, 0.5f, 0, 0, 255};
-	vertices[11] = {-0.5f, -0.5f, -0.5f, 0, 0, 255};
+	vertices[8] = { -0.5f, 0.5f, -0.5f, 0, 0, 255 };
+	vertices[9] = { -0.5f, 0.5f, 0.5f, 0, 0, 255 };
+	vertices[10] = { -0.5f, -0.5f, 0.5f, 0, 0, 255 };
+	vertices[11] = { -0.5f, -0.5f, -0.5f, 0, 0, 255 };
 
 	// right
-	vertices[12] = {0.5f, 0.5f, 0.5f, 255, 255, 0};
-	vertices[13] = {0.5f, 0.5f, -0.5f, 255, 255, 0};
-	vertices[14] = {0.5f, -0.5f, -0.5f, 255, 255, 0};
-	vertices[15] = {0.5f, -0.5f, 0.5f, 255, 255, 0};
+	vertices[12] = { 0.5f, 0.5f, 0.5f, 255, 255, 0 };
+	vertices[13] = { 0.5f, 0.5f, -0.5f, 255, 255, 0 };
+	vertices[14] = { 0.5f, -0.5f, -0.5f, 255, 255, 0 };
+	vertices[15] = { 0.5f, -0.5f, 0.5f, 255, 255, 0 };
 
 	// top
-	vertices[16] = {-0.5f, 0.5f, -0.5f, 255, 0, 255};
-	vertices[17] = {0.5f, 0.5f, -0.5f, 255, 0, 255};
-	vertices[18] = {0.5f, 0.5f, 0.5f, 255, 0, 255};
-	vertices[19] = {-0.5f, 0.5f, 0.5f, 255, 0, 255};
+	vertices[16] = { -0.5f, 0.5f, -0.5f, 255, 0, 255 };
+	vertices[17] = { 0.5f, 0.5f, -0.5f, 255, 0, 255 };
+	vertices[18] = { 0.5f, 0.5f, 0.5f, 255, 0, 255 };
+	vertices[19] = { -0.5f, 0.5f, 0.5f, 255, 0, 255 };
 
 	// bottom
-	vertices[20] = {-0.5f, -0.5f, 0.5f, 0, 255, 255};
-	vertices[21] = {0.5f, -0.5f, 0.5f, 0, 255, 255};
-	vertices[22] = {0.5f, -0.5f, -0.5f, 0, 255, 255};
-	vertices[23] = {-0.5f, -0.5f, -0.5f, 0, 255, 255};
-
-	// PLANE that faces upwards
-	vertices[24] = {-0.5f, 0.5f, -0.5f, 250, 250, 250};
-	vertices[25] = {0.5f, 0.5f, -0.5f, 250, 250, 250};
-	vertices[26] = {0.5f, 0.5f, 0.5f, 250, 250, 250};
-	vertices[27] = {-0.5f, 0.5f, 0.5f, 250, 250, 250};
+	vertices[20] = { -0.5f, -0.5f, 0.5f, 0, 255, 255 };
+	vertices[21] = { 0.5f, -0.5f, 0.5f, 0, 255, 255 };
+	vertices[22] = { 0.5f, -0.5f, -0.5f, 0, 255, 255 };
+	vertices[23] = { -0.5f, -0.5f, -0.5f, 0, 255, 255 };
 
 	// normals and UV
-	for (size_t i = 0; i < 28; i += 4)
+	for(size_t i = 0; i < 28; i += 4)
 	{
 		GLfloat x0 = vertices[i].x;
 		GLfloat y0 = vertices[i].y;
@@ -216,10 +372,7 @@ int main()
 			8, 9, 10, 8, 10, 11,
 			12, 13, 14, 12, 14, 15,
 			16, 17, 18, 16, 18, 19,
-			20, 21, 22, 20, 22, 23};
-
-	GLuint planeIndices[] = {
-			24, 25, 26, 24, 26, 27};
+			20, 21, 22, 20, 22, 23 };
 
 	// VBO setup
 	GLuint vbo;
@@ -233,11 +386,6 @@ int main()
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(cubeIndices), cubeIndices, GL_STATIC_DRAW);
 
-	GLuint planeEbo;
-	glGenBuffers(1, &planeEbo);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, planeEbo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(planeIndices), planeIndices, GL_STATIC_DRAW);
-
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
 	// VAO setup
@@ -246,11 +394,11 @@ int main()
 	glBindVertexArray(objectVAO);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)offsetof(Vertex, x));
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, x));
 	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex), (void *)(offsetof(Vertex, r)));
+	glVertexAttribPointer(1, 3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex), (void*)(offsetof(Vertex, r)));
 	glEnableVertexAttribArray(2);
-	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)(offsetof(Vertex, nx)));
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(offsetof(Vertex, nx)));
 
 	glBindVertexArray(0);
 
@@ -276,7 +424,7 @@ int main()
 	if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 		std::cerr << "Framebuffer incomplete...\n";
 
-	std::vector<std::string> faces {
+	std::vector<std::string> faces{
 		"./skybox/right.jpg",
 		"./skybox/left.jpg",
 		"./skybox/top.jpg",
@@ -303,33 +451,50 @@ int main()
 	glEnable(GL_DEPTH_TEST);
 
 	GLint cubeIndicesSize = sizeof(cubeIndices) / sizeof(cubeIndices[0]);
-	GLint planeIndicesSize = sizeof(planeIndices) / sizeof(planeIndices[0]);
 
 	lastTime = glfwGetTime();
 
 	// DIRECTIONAL LIGHT
-	glm::vec3 directionalLightPosition(-3.0f, 3.0f, -7.0f);
+	glm::vec3 directionalLightPosition(0.0f, 6.0f, -4.0f);
 	glm::vec3 directionalLightDirection(1.0f, -1.0f, 1.0f);
 	glm::vec3 directionalLightAmbient(1.0f, 1.0f, 1.0f);
 	glm::vec3 directionalLightDiffuse(0.75f, 0.75f, 0.75f);
 	glm::vec3 directionalLightSpecular(1.5f, 0.5f, 1.5f);
-	glm::mat4 directionalLightProjectionMatrix = glm::ortho(-15.0f, 10.0f, -5.0f, 10.0f, 0.0f, 20.0f);
+	glm::mat4 directionalLightProjectionMatrix = glm::ortho(-20.0f, 15.0f, -10.0f, 15.0f, 0.0f, 20.0f);
 	glm::mat4 directionalLightViewMatrix = glm::lookAt(directionalLightPosition, directionalLightPosition + directionalLightDirection, glm::vec3(0, 1, 0));
 
+	Model model = Model("Bedroom.obj");
+
+	glfwSetMouseButtonCallback(window, mouse_button_callback);
+
+	// identity matrix
+	glm::mat4 iMatrix(1.0f);
+
 	// Render loop
-	while (!glfwWindowShouldClose(window))
+	while(!glfwWindowShouldClose(window))
 	{
 		currentTime = glfwGetTime();
 		deltaTime = currentTime - lastTime;
 		lastTime = currentTime;
 
-		getInput();
+		//getInput();
 
-		// identity matrix
-		glm::mat4 iMatrix(1.0f);
+		if(toggled)
+		{
+			position.x = glm::sin(currentTime * 0.5f) * 15.0f;
+			position.z = glm::cos(currentTime * 0.5f) * 15.0f;
+			position.y = 10.0f;
+		}
+		else
+		{
+			position.x = glm::sin(currentTime * 0.5f) * 5.0f;
+			position.z = glm::cos(currentTime * 0.5f) * 5.0f;
+		}
+		cameraDirection = glm::normalize(-position);
+		cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
 
 		// MVP uniforms
-		glm::mat4 viewMatrix = glm::lookAt(position, position + direction, up);
+		glm::mat4 viewMatrix = glm::lookAt(position, position + cameraDirection, cameraUp);
 		glm::mat4 projectionMatrix = glm::perspective(glm::radians(90.0f), windowWidth / windowHeight, 0.1f, 100.0f);
 
 
@@ -353,13 +518,11 @@ int main()
 		fifthMatrix = glm::translate(fifthMatrix, glm::vec3(-2.0f, 0.8f, -5.0f));
 		fifthMatrix = glm::rotate(fifthMatrix, glm::radians(23.0f), glm::vec3(1.0f, 1.0f, 0.0f));
 		fifthMatrix = glm::rotate(fifthMatrix, glm::radians(currentTime * 60.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-		// plane
-		glm::mat4 planeMatrix = glm::scale(iMatrix, glm::vec3(10.0f, 1.0f, 10.0f));
-		planeMatrix = glm::translate(planeMatrix, glm::vec3(0, -0.5f, 0));
+		// bedroom
+		glm::mat4 bedroomMatrix = glm::scale(iMatrix, glm::vec3(5.0f, 5.0f, 5.0f));
+		bedroomMatrix = glm::rotate(bedroomMatrix, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 		// skybox
 		glm::mat4 skyboxMatrix = glm::scale(iMatrix, glm::vec3(50.0f, 50.0f, 50.0f));
-
-
 
 
 		// SHADOW PASS
@@ -371,21 +534,24 @@ int main()
 		glUniformMatrix4fv(glGetUniformLocation(depthShader, "lightProjection"), 1, GL_FALSE, glm::value_ptr(directionalLightProjectionMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(depthShader, "lightView"), 1, GL_FALSE, glm::value_ptr(directionalLightViewMatrix));
 
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
-		glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(firstMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(secondMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(thirdMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(fourthMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(fifthMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, planeEbo);
-		glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(planeMatrix));
-		glDrawElements(GL_TRIANGLES, planeIndicesSize, GL_UNSIGNED_INT, 0);
-
+		if(toggled)
+		{
+			model.Draw(depthShader, bedroomMatrix);
+		}
+		else
+		{
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
+			glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(firstMatrix));
+			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+			glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(secondMatrix));
+			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+			glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(thirdMatrix));
+			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+			glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(fourthMatrix));
+			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+			glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(fifthMatrix));
+			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+		}
 
 		// RENDER PASS
 		glUseProgram(mainShader);
@@ -408,36 +574,44 @@ int main()
 		glUniformMatrix4fv(glGetUniformLocation(mainShader, "lightProjection"), 1, GL_FALSE, glm::value_ptr(directionalLightProjectionMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(mainShader, "lightView"), 1, GL_FALSE, glm::value_ptr(directionalLightViewMatrix));
 
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
-		glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(firstMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(secondMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(thirdMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(fourthMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(fifthMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, planeEbo);
-		glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(planeMatrix));
-		glDrawElements(GL_TRIANGLES, planeIndicesSize, GL_UNSIGNED_INT, 0);
-		
+		if(toggled)
+		{
+			glUniform1i(glGetUniformLocation(mainShader, "reflective"), 0);
+			model.Draw(mainShader, bedroomMatrix);
+		}
+		else
+		{
+			glUniform1i(glGetUniformLocation(mainShader, "reflective"), 1);
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
+			glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(firstMatrix));
+			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+			glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(secondMatrix));
+			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+			glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(thirdMatrix));
+			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+			glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(fourthMatrix));
+			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+			glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(fifthMatrix));
+			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+		}
 
-		// SKYBOX PASS
-		glDepthFunc(GL_LEQUAL);
-		glUseProgram(skyboxShader);
-		glm::mat4 skyboxViewMatrix = glm::mat4(glm::mat3(viewMatrix));
-		glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "view"), 1, GL_FALSE, glm::value_ptr(skyboxViewMatrix));
-		glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+		if(!toggled)
+		{
+			// SKYBOX PASS
+			glDepthFunc(GL_LEQUAL);
+			glUseProgram(skyboxShader);
+			glm::mat4 skyboxViewMatrix = glm::mat4(glm::mat3(viewMatrix));
+			glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "view"), 1, GL_FALSE, glm::value_ptr(skyboxViewMatrix));
+			glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 
-		glActiveTexture(GL_TEXTURE0);
-		
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
-		glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "model"), 1, GL_FALSE, glm::value_ptr(skyboxMatrix));
-		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+			glActiveTexture(GL_TEXTURE0);
 
-		glDepthFunc(GL_LESS);
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
+			glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "model"), 1, GL_FALSE, glm::value_ptr(skyboxMatrix));
+			glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
+
+			glDepthFunc(GL_LESS);
+		}
 
 		// CLEAR
 		glBindVertexArray(0);
@@ -457,7 +631,7 @@ int main()
 	return 0;
 }
 
-GLuint CreateShaderProgram(const std::string &vertexShaderFilePath, const std::string &fragmentShaderFilePath)
+GLuint CreateShaderProgram(const std::string& vertexShaderFilePath, const std::string& fragmentShaderFilePath)
 {
 	GLuint vertexShader = CreateShaderFromFile(GL_VERTEX_SHADER, vertexShaderFilePath);
 	GLuint fragmentShader = CreateShaderFromFile(GL_FRAGMENT_SHADER, fragmentShaderFilePath);
@@ -476,7 +650,7 @@ GLuint CreateShaderProgram(const std::string &vertexShaderFilePath, const std::s
 	// Check shader program link status
 	GLint linkStatus;
 	glGetProgramiv(program, GL_LINK_STATUS, &linkStatus);
-	if (linkStatus != GL_TRUE)
+	if(linkStatus != GL_TRUE)
 	{
 		char infoLog[512];
 		GLsizei infoLogLen = sizeof(infoLog);
@@ -487,10 +661,10 @@ GLuint CreateShaderProgram(const std::string &vertexShaderFilePath, const std::s
 	return program;
 }
 
-GLuint CreateShaderFromFile(const GLuint &shaderType, const std::string &shaderFilePath)
+GLuint CreateShaderFromFile(const GLuint& shaderType, const std::string& shaderFilePath)
 {
 	std::ifstream shaderFile(shaderFilePath);
-	if (shaderFile.fail())
+	if(shaderFile.fail())
 	{
 		std::cerr << "Unable to open shader file: " << shaderFilePath << std::endl;
 		return 0;
@@ -498,7 +672,7 @@ GLuint CreateShaderFromFile(const GLuint &shaderType, const std::string &shaderF
 
 	std::string shaderSource;
 	std::string temp;
-	while (std::getline(shaderFile, temp))
+	while(std::getline(shaderFile, temp))
 	{
 		shaderSource += temp + "\n";
 	}
@@ -507,11 +681,11 @@ GLuint CreateShaderFromFile(const GLuint &shaderType, const std::string &shaderF
 	return CreateShaderFromSource(shaderType, shaderSource);
 }
 
-GLuint CreateShaderFromSource(const GLuint &shaderType, const std::string &shaderSource)
+GLuint CreateShaderFromSource(const GLuint& shaderType, const std::string& shaderSource)
 {
 	GLuint shader = glCreateShader(shaderType);
 
-	const char *shaderSourceCStr = shaderSource.c_str();
+	const char* shaderSourceCStr = shaderSource.c_str();
 	GLint shaderSourceLen = static_cast<GLint>(shaderSource.length());
 	glShaderSource(shader, 1, &shaderSourceCStr, &shaderSourceLen);
 	glCompileShader(shader);
@@ -519,7 +693,7 @@ GLuint CreateShaderFromSource(const GLuint &shaderType, const std::string &shade
 	// Check compilation status
 	GLint compileStatus;
 	glGetShaderiv(shader, GL_COMPILE_STATUS, &compileStatus);
-	if (compileStatus == GL_FALSE)
+	if(compileStatus == GL_FALSE)
 	{
 		char infoLog[512];
 		GLsizei infoLogLen = sizeof(infoLog);
@@ -530,7 +704,7 @@ GLuint CreateShaderFromSource(const GLuint &shaderType, const std::string &shade
 	return shader;
 }
 
-void FramebufferSizeChangedCallback(GLFWwindow *window, int width, int height)
+void FramebufferSizeChangedCallback(GLFWwindow* window, int width, int height)
 {
 	// Whenever the size of the framebuffer changed (due to window resizing, etc.),
 	// update the dimensions of the region to the new size
@@ -545,24 +719,30 @@ void getInput()
 	horizontalAngle += mouseSpeed * deltaTime * float(windowWidth / 2 - xpos);
 	verticalAngle += mouseSpeed * deltaTime * float(windowHeight / 2 - ypos);
 
-	direction = glm::vec3(cos(verticalAngle) * sin(horizontalAngle), sin(verticalAngle), cos(verticalAngle) * cos(horizontalAngle));
-	right = glm::vec3(sin(horizontalAngle - M_PI / 2.0f), 0.0f, cos(horizontalAngle - M_PI / 2.0f));
-	up = glm::cross(right, direction);
+	cameraDirection = glm::vec3(cos(verticalAngle) * sin(horizontalAngle), sin(verticalAngle), cos(verticalAngle) * cos(horizontalAngle));
+	cameraRight = glm::vec3(sin(horizontalAngle - M_PI / 2.0f), 0.0f, cos(horizontalAngle - M_PI / 2.0f));
+	cameraUp = glm::cross(cameraRight, cameraDirection);
 
-	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+	if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
 	{
-		position += direction * deltaTime * speed;
+		position += cameraDirection * deltaTime * speed;
 	}
-	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+	if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
 	{
-		position -= direction * deltaTime * speed;
+		position -= cameraDirection * deltaTime * speed;
 	}
-	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+	if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
 	{
-		position += right * deltaTime * speed;
+		position += cameraRight * deltaTime * speed;
 	}
-	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+	if(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
 	{
-		position -= right * deltaTime * speed;
+		position -= cameraRight * deltaTime * speed;
 	}
+}
+
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+{
+	if(button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS)
+		toggled = !toggled;
 }
