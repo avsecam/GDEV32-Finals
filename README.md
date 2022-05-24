@@ -5,6 +5,10 @@ A compilation of LearnOpenGL stuff
 ![Bedroom](screenshotBedroom.png)
 ![Monkey](screenshotMonkey.png)
 
+## Setup
+- Have Assimp compiled and its files in their respective folders
+- Alternatively, run out.exe.
+
 ## Added Features to Programming Exercise 3
 - Cubemaps (Skybox)
 - Reflections
