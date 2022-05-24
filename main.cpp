@@ -28,6 +28,8 @@ GLuint CreateShaderFromSource(const GLuint& shaderType, const std::string& shade
 
 void FramebufferSizeChangedCallback(GLFWwindow* window, int width, int height);
 
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
+
 struct Vertex
 {
 	GLfloat x, y, z;		// Position
@@ -463,6 +465,7 @@ int main()
 
 	Model model = Model("Bedroom.obj");
 
+	glfwSetMouseButtonCallback(window, mouse_button_callback);
 	// Render loop
 	while(!glfwWindowShouldClose(window))
 	{
@@ -716,8 +719,10 @@ void getInput()
 	{
 		position -= cameraRight * deltaTime * speed;
 	}
-	if(glfwGetKey(window, GLFW_KEY_TAB) == GLFW_PRESS)
-	{
+}
+
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+{
+	if(button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS)
 		toggled = !toggled;
-	}
 }
