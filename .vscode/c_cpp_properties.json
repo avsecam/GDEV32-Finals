@@ -3,7 +3,8 @@
     {
       "name": "windows-gcc-x86",
       "includePath": [
-        "${workspaceFolder}/**"
+        "${workspaceFolder}/**",
+        "${workspaceFolder}/../../include/*"
       ],
       "compilerPath": "A:/Other/MinGW/bin/gcc.exe",
       "cStandard": "${default}",

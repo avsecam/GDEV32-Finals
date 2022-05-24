@@ -3,6 +3,7 @@ A compilation of LearnOpenGL stuff
 
 ![Cubes](screenshotCubes.png)
 ![Bedroom](screenshotBedroom.png)
+![Monkey](screenshotMonkey.png)
 
 ## Added Features to Programming Exercise 3
 - Cubemaps (Skybox)
@@ -13,3 +14,4 @@ A compilation of LearnOpenGL stuff
 ## Controls
 - W / S to move camera up and down
 - Right click to change scene
+- Left click to toggle reflectivity
