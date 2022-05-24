@@ -9,3 +9,7 @@ A compilation of LearnOpenGL stuff
 - Reflections
 - PCF
 - Assimp Model Loading
+
+## Controls
+- W / S to move camera up and down
+- Right click to change scene
