@@ -1,6 +1,7 @@
 # GDEV 32 Finals
 
-![Screenshot](screenshot.png)
+![Cubes](screenshotCubes.png)
+![Bedroom](screenshotBedroom.png)
 
 ## Added Features to Programming Exercise 3
 - HDR (not yet sure if correct)
