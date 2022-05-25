@@ -1,5 +1,6 @@
 # GDEV 32 Finals
 A compilation of LearnOpenGL stuff
+https://github.com/avsecam/GDEV32-Finals
 
 ![Cubes](screenshotCubes.png)
 ![Bedroom](screenshotBedroom.png)
