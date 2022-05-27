@@ -106,7 +106,7 @@ public:
 	}
 	void Draw(GLuint shader, glm::mat4 transform)
 	{
-		for(unsigned int i = 0; i < meshes.size(); i++)
+		for (unsigned int i = 0; i < meshes.size(); i++)
 		{
 			meshes[i].Draw(shader, transform);
 		}
@@ -121,7 +121,7 @@ private:
 		Assimp::Importer import;
 		const aiScene* scene = import.ReadFile(path, aiProcess_Triangulate | aiProcess_FlipUVs);
 
-		if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
+		if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
 		{
 			cout << "ERROR::ASSIMP::" << import.GetErrorString() << endl;
 			return;
@@ -132,13 +132,13 @@ private:
 	}
 	void processNode(aiNode* node, const aiScene* scene)
 	{
-		for(unsigned int i = 0; i < node->mNumMeshes; i++)
+		for (unsigned int i = 0; i < node->mNumMeshes; i++)
 		{
 			aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
 			meshes.push_back(processMesh(mesh, scene));
 		}
 
-		for(unsigned int i = 0; i < node->mNumChildren; i++)
+		for (unsigned int i = 0; i < node->mNumChildren; i++)
 		{
 			processNode(node->mChildren[i], scene);
 		}
@@ -149,7 +149,7 @@ private:
 		vector<unsigned int> indices;
 		vector<Texture> textures;
 		//processes vertices
-		for(unsigned int i = 0; i < mesh->mNumVertices; i++)
+		for (unsigned int i = 0; i < mesh->mNumVertices; i++)
 		{
 			Vertex vertex;
 
@@ -168,10 +168,10 @@ private:
 			vertices.push_back(vertex);
 		}
 		//process indices
-		for(unsigned int i = 0; i < mesh->mNumFaces; i++)
+		for (unsigned int i = 0; i < mesh->mNumFaces; i++)
 		{
 			aiFace face = mesh->mFaces[i];
-			for(unsigned int j = 0; j < face.mNumIndices; j++)
+			for (unsigned int j = 0; j < face.mNumIndices; j++)
 			{
 				indices.push_back(face.mIndices[j]);
 			}
@@ -199,14 +199,15 @@ GLuint loadSkybox(std::vector<std::string> faces)
 	glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
 
 	GLint width, height, numOfChannels;
-	for(size_t i = 0; i < faces.size(); ++i)
+	for (size_t i = 0; i < faces.size(); ++i)
 	{
 		unsigned char* data = stbi_load(faces[i].c_str(), &width, &height, &numOfChannels, 0);
-		if(data)
+		if (data)
 		{
 			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
 				0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-		} else
+		}
+		else
 			std::cerr << "ERROR loading cubemap texture\n";
 		stbi_image_free(data);
 	}
@@ -247,7 +248,7 @@ int main()
 {
 	// Initialize GLFW
 	int glfwInitStatus = glfwInit();
-	if(glfwInitStatus == GLFW_FALSE)
+	if (glfwInitStatus == GLFW_FALSE)
 	{
 		std::cerr << "Failed to initialize GLFW!" << std::endl;
 		return 1;
@@ -266,7 +267,7 @@ int main()
 	windowWidth = 800;
 	windowHeight = 800;
 	window = glfwCreateWindow(windowWidth, windowHeight, "FINALS", nullptr, nullptr);
-	if(window == nullptr)
+	if (window == nullptr)
 	{
 		std::cerr << "Failed to create GLFW window!" << std::endl;
 		glfwTerminate();
@@ -280,7 +281,7 @@ int main()
 	glfwSetFramebufferSizeCallback(window, FramebufferSizeChangedCallback);
 
 	// Tell GLAD to load the OpenGL function pointers
-	if(!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress)))
+	if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress)))
 	{
 		std::cerr << "Failed to initialize GLAD!" << std::endl;
 		return 1;
@@ -334,7 +335,7 @@ int main()
 	vertices[27] = { -0.5f, 0.5f, 0.5f, 250, 250, 250 };
 
 	// normals and UV
-	for(size_t i = 0; i < 28; i += 4)
+	for (size_t i = 0; i < 28; i += 4)
 	{
 		GLfloat x0 = vertices[i].x;
 		GLfloat y0 = vertices[i].y;
@@ -437,7 +438,7 @@ int main()
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthTexture, 0);
 	glDrawBuffer(GL_NONE);
 
-	if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 		std::cerr << "Framebuffer incomplete...\n";
 
 	std::vector<std::string> faces{
@@ -483,13 +484,16 @@ int main()
 	Model bedroom = Model("Bedroom.obj");
 	Model monkey = Model("Monkey.obj");
 
+	glm::vec3 skyboxColor(0.0f, 0.0f, 0.0f);
+	
+
 	glfwSetMouseButtonCallback(window, mouse_button_callback);
 
 	// identity matrix
 	glm::mat4 iMatrix(1.0f);
 
 	// Render loop
-	while(!glfwWindowShouldClose(window))
+	while (!glfwWindowShouldClose(window))
 	{
 		currentTime = glfwGetTime();
 		deltaTime = currentTime - lastTime;
@@ -497,11 +501,12 @@ int main()
 
 		getInput();
 
-		if(toggle == 0)
+		if (toggle == 0)
 		{
 			position.x = glm::sin(currentTime * 0.5f) * 15.0f;
 			position.z = glm::cos(currentTime * 0.5f) * 15.0f;
-		} else
+		}
+		else
 		{
 			position.x = glm::sin(currentTime * 0.5f) * 24.0f;
 			position.z = glm::cos(currentTime * 0.5f) * 24.0f;
@@ -555,13 +560,15 @@ int main()
 		glUniformMatrix4fv(glGetUniformLocation(depthShader, "lightProjection"), 1, GL_FALSE, glm::value_ptr(directionalLightProjectionMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(depthShader, "lightView"), 1, GL_FALSE, glm::value_ptr(directionalLightViewMatrix));
 
-		if(toggle == 1)
+		if (toggle == 1)
 		{
 			bedroom.Draw(depthShader, bedroomMatrix);
-		} else if(toggle == 2)
+		}
+		else if (toggle == 2)
 		{
 			monkey.Draw(depthShader, monkeyMatrix);
-		} else
+		}
+		else
 		{
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
 			glUniformMatrix4fv(glGetUniformLocation(depthShader, "model"), 1, GL_FALSE, glm::value_ptr(firstMatrix));
@@ -597,22 +604,30 @@ int main()
 		glUniform3fv(glGetUniformLocation(mainShader, "directionalLightAmbient"), 1, glm::value_ptr(directionalLightAmbient));
 		glUniform3fv(glGetUniformLocation(mainShader, "directionalLightDiffuse"), 1, glm::value_ptr(directionalLightDiffuse));
 		glUniform3fv(glGetUniformLocation(mainShader, "directionalLightSpecular"), 1, glm::value_ptr(directionalLightSpecular));
+		directionalLightDiffuse.x = glm::sin(currentTime * 0.5f) + 1.0f;
+		directionalLightDiffuse.y = glm::sin(currentTime * 0.5f) + 1.0f;
+		directionalLightDiffuse.z = glm::sin(currentTime * 0.5f) + 1.0f;
+		directionalLightAmbient.x = max(glm::sin(currentTime * 0.5f) + 1.0f, 0.2f);
+		directionalLightAmbient.y = max(glm::sin(currentTime * 0.5f) + 1.0f, 0.2f);
+		directionalLightAmbient.z = max(glm::sin(currentTime * 0.5f) + 1.0f, 0.2f);
 
 		glUniformMatrix4fv(glGetUniformLocation(mainShader, "lightProjection"), 1, GL_FALSE, glm::value_ptr(directionalLightProjectionMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(mainShader, "lightView"), 1, GL_FALSE, glm::value_ptr(directionalLightViewMatrix));
 
 
 		glUniform1i(glGetUniformLocation(mainShader, "reflective"), 0);
-		if(reflectionToggle)
+		if (reflectionToggle)
 			glUniform1i(glGetUniformLocation(mainShader, "reflective"), 1);
 
-		if(toggle == 1)
+		if (toggle == 1)
 		{
 			bedroom.Draw(mainShader, bedroomMatrix);
-		} else if(toggle == 2)
+		}
+		else if (toggle == 2)
 		{
 			monkey.Draw(mainShader, monkeyMatrix);
-		} else
+		}
+		else
 		{
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
 			glUniformMatrix4fv(glGetUniformLocation(mainShader, "model"), 1, GL_FALSE, glm::value_ptr(firstMatrix));
@@ -638,13 +653,17 @@ int main()
 		glm::mat4 skyboxViewMatrix = glm::mat4(glm::mat3(viewMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "view"), 1, GL_FALSE, glm::value_ptr(skyboxViewMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+		glUniform3fv(glGetUniformLocation(skyboxShader, "skyboxColor"), 1, glm::value_ptr(skyboxColor));
+		skyboxColor.x = glm::sin(currentTime * 0.5f) + 1.0f;
+		skyboxColor.y = glm::sin(currentTime * 0.5f) + 1.0f;
+		skyboxColor.z = glm::sin(currentTime * 0.5f) + 1.0f;
 
 		glActiveTexture(GL_TEXTURE0);
 
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
 		glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "model"), 1, GL_FALSE, glm::value_ptr(skyboxMatrix));
 		glDrawElements(GL_TRIANGLES, cubeIndicesSize, GL_UNSIGNED_INT, 0);
-
+		
 		glDepthFunc(GL_LESS);
 
 		// CLEAR
@@ -684,7 +703,7 @@ GLuint CreateShaderProgram(const std::string& vertexShaderFilePath, const std::s
 	// Check shader program link status
 	GLint linkStatus;
 	glGetProgramiv(program, GL_LINK_STATUS, &linkStatus);
-	if(linkStatus != GL_TRUE)
+	if (linkStatus != GL_TRUE)
 	{
 		char infoLog[512];
 		GLsizei infoLogLen = sizeof(infoLog);
@@ -698,7 +717,7 @@ GLuint CreateShaderProgram(const std::string& vertexShaderFilePath, const std::s
 GLuint CreateShaderFromFile(const GLuint& shaderType, const std::string& shaderFilePath)
 {
 	std::ifstream shaderFile(shaderFilePath);
-	if(shaderFile.fail())
+	if (shaderFile.fail())
 	{
 		std::cerr << "Unable to open shader file: " << shaderFilePath << std::endl;
 		return 0;
@@ -706,7 +725,7 @@ GLuint CreateShaderFromFile(const GLuint& shaderType, const std::string& shaderF
 
 	std::string shaderSource;
 	std::string temp;
-	while(std::getline(shaderFile, temp))
+	while (std::getline(shaderFile, temp))
 	{
 		shaderSource += temp + "\n";
 	}
@@ -727,7 +746,7 @@ GLuint CreateShaderFromSource(const GLuint& shaderType, const std::string& shade
 	// Check compilation status
 	GLint compileStatus;
 	glGetShaderiv(shader, GL_COMPILE_STATUS, &compileStatus);
-	if(compileStatus == GL_FALSE)
+	if (compileStatus == GL_FALSE)
 	{
 		char infoLog[512];
 		GLsizei infoLogLen = sizeof(infoLog);
@@ -757,16 +776,16 @@ void getInput()
 	cameraRight = glm::vec3(sin(horizontalAngle - M_PI / 2.0f), 0.0f, cos(horizontalAngle - M_PI / 2.0f));
 	cameraUp = glm::cross(cameraRight, cameraDirection);*/
 
-	if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS and position.y <= 50.0f)
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS and position.y <= 50.0f)
 		position.y += 0.1f;
-	if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS and position.y >= -30.0f)
+	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS and position.y >= -30.0f)
 		position.y -= 0.1f;
 }
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
-	if(button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS)
+	if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS)
 		toggle = (toggle < 2) ? toggle + 1 : 0;
-	if(button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
+	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
 		reflectionToggle = !reflectionToggle;
 }
