@@ -11,10 +11,11 @@ https://github.com/avsecam/GDEV32-Finals
 - Alternatively, run out.exe.
 
 ## Added Features to Programming Exercise 3
-- Cubemaps (Skybox)
-- Reflections
-- PCF
-- Assimp Model Loading
+- Cubemaps (Skybox) ☁
+- Reflections ✨
+- PCF 👻
+- Assimp Model Loading 🔃
+- Day/Night Cycle 🌞🌚
 
 ## Controls
 - W / S to move camera up and down
